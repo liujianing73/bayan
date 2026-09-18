@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} - 钯盐系统{% endblock %}
+
+{% block content %}
+<div class="placeholder-card">
+    <h2>{{ page_title }}</h2>
+    <p>该页面正在开发中，待业务细节确认后完善。</p>
+    <a class="btn btn-primary" href="{% url 'palladium:dashboard' %}">返回首页</a>
+</div>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}历史参数列表 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="page-banner banner-with-actions">
+    <h1>标准参数历史列表</h1>
+    <a class="btn btn-green" href="{% url 'palladium:param_create' %}">新增标准</a>
+</div>
+
+<main class="content form-page" style="max-width:100%;">
+    {% include 'messages.html' %}
+
+    <!-- 筛选工具栏 -->
+    <form method="get" class="list-toolbar" id="filterForm">
+        <div class="tool-item grow">
+            <label>料号</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="输入料号关键字" style="width:100%;">
+        </div>
+        <div class="tool-item grow">
+            <label>产线</label>
+            <select name="line" style="width:100%;">
+                <option value="">全部</option>
+                {% for line in lines %}
+                <option value="{{ line.id }}" {% if line_id == line.id|stringformat:"s" %}selected{% endif %}>{{ line.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="tool-item grow">
+            <label>生效时间范围</label>
+            <div class="date-range">
+                <input type="date" name="start" value="{{ start }}">
+                <span class="range-sep">至</span>
+                <input type="date" name="end" value="{{ end }}">
+            </div>
+        </div>
+        <div class="tool-item">
+            <label>每页条数</label>
+            <select name="page_size" onchange="document.getElementById('filterForm').submit()">
+                {% for size in page_sizes %}
+                <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-green">筛选</button>
+        <a class="btn" href="{{ clear_url }}">重置</a>
+    </form>
+
+    <!-- 历史列表 -->
+    <div class="table-wrap">
+        <table class="list-table">
+            <thead>
+            <tr>
+                <th>料号</th>
+                <th>产线</th>
+                <th>标准钯用量（g/K）</th>
+                <th>标准产能（Kpcs/min）</th>
+                <th>生效时间</th>
+                <th>失效时间</th>
+                <th>操作人</th>
+                <th>输入人员</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for r in page_obj %}
+            <tr>
+                <td>{{ r.part_no }}</td>
+                <td>{{ r.line_name }}</td>
+                <td>{{ r.gold }}</td>
+                <td>{{ r.capacity }}</td>
+                <td>{{ r.effective|date:'Y-m-d' }} 00:00</td>
+                <td>{% if r.expiry %}{{ r.expiry|date:'Y-m-d' }} 00:00{% else %}-{% endif %}</td>
+                <td>{{ r.creator|default:'-' }}</td>
+                <td>{% if r.creator %}<span class="chip chip-{{ r.creator_chip }}">{{ r.creator }}</span>{% else %}-{% endif %}</td>
+                <td>{{ r.created_at|date:'Y-m-d H:i' }}</td>
+                <td class="action-cell">
+                    <form method="post" action="{% url 'palladium:param_history_delete' r.id %}" class="inline-form"
+                          data-confirm="确认删除该条标准参数？">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-red-outline btn-sm">删除</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="10" class="empty-cell">暂无标准参数历史记录</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            <span>共 {{ page_obj.paginator.count }} 条 / 第 {{ page_obj.number }} 页（共 {{ page_obj.paginator.num_pages }} 页）</span>
+            <span class="page-links">
+                {% if prev_url %}<a class="btn btn-sm" href="{{ prev_url }}">上一页</a>{% endif %}
+                {% if next_url %}<a class="btn btn-sm" href="{{ next_url }}">下一页</a>{% endif %}
+            </span>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+        });
+    });
+})();
+</script>
+{% endblock %}

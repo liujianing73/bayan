@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}生产日报查看 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="edit-header">
+    <h1>生产日报查看</h1>
+    <a class="btn btn-gray" href="{% url 'palladium:dashboard' %}">返回</a>
+</div>
+
+<main class="content form-page" style="max-width:100%;">
+    {% include 'messages.html' %}
+
+    <!-- 筛选条件 -->
+    <form method="get" class="form-card" id="filterForm">
+        <div class="form-card-header"><h2>筛选条件</h2></div>
+        <div class="form-card-body">
+            <div class="field-row cols-4">
+                <div class="form-item">
+                    <label>产线</label>
+                    <select name="line">
+                        <option value="">全部产线</option>
+                        {% for line in lines %}
+                        <option value="{{ line.id }}" {% if line_id == line.id|stringformat:"s" %}selected{% endif %}>{{ line.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-item">
+                    <label>开始日期</label>
+                    <input type="date" name="start" value="{{ start }}">
+                </div>
+                <div class="form-item">
+                    <label>结束日期</label>
+                    <input type="date" name="end" value="{{ end }}">
+                </div>
+                <div class="form-item">
+                    <label>线长（模糊匹配）</label>
+                    <input type="text" name="leader" value="{{ leader }}" placeholder="输入或选择线长">
+                </div>
+            </div>
+            <div class="filter-actions-row">
+                <div class="form-item" style="margin-bottom:0; flex:1; max-width:420px;">
+                    <label>IPQC（模糊匹配）</label>
+                    <input type="text" name="ipqc" value="{{ ipqc }}" placeholder="输入或选择IPQC">
+                </div>
+                <button type="submit" class="btn btn-green filter-btn">筛选</button>
+                <a class="btn filter-btn" href="{{ clear_url }}">清除</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- 生产日报记录 -->
+    <section class="form-card">
+        <div class="form-card-header">
+            <h2>生产日报记录</h2>
+            <div class="header-actions">
+                <a class="btn btn-green" href="{{ export_url }}">导出Excel</a>
+                <button type="button" class="btn btn-red" id="btn-bulk-delete">批量删除</button>
+            </div>
+        </div>
+        <div class="form-card-body" style="padding-top:10px;">
+            <form method="post" action="{% url 'palladium:report_bulk_delete' %}" id="bulkForm">
+                {% csrf_token %}
+                <div class="slot-table-wrap no-shadow">
+                    <table class="list-table report-table">
+                        <thead>
+                        <tr>
+                            <th class="col-check"><input type="checkbox" id="select-all"></th>
+                            <th>产线</th>
+                            <th>车间楼层</th>
+                            <th>取样日期</th>
+                            <th>取样时间</th>
+                            <th>线长</th>
+                            <th>IPQC</th>
+                            <th>输入人员</th>
+                            <th>槽位数量</th>
+                            <th>生产明细</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for r in rows %}
+                        <tr class="report-row">
+                            <td class="col-check"><input type="checkbox" class="row-check" name="ids" value="{{ r.id }}"></td>
+                            <td>
+                                <div class="cell-line-name">{{ r.line.name }}{% if r.line.line_no %}（{{ r.line.line_no }}）{% endif %}</div>
+                                <div class="cell-sub">{{ r.line.plating_type.name|default:'' }}</div>
+                            </td>
+                            <td>{{ r.floor }}</td>
+                            <td>{{ r.sample_date|date:'Y/m/d' }}</td>
+                            <td>{{ r.sample_time }}</td>
+                            <td class="{% if not r.leader %}text-muted{% endif %}">{{ r.leader|default:'待填写' }}</td>
+                            <td class="{% if not r.ipqc %}text-muted{% endif %}">{{ r.ipqc|default:'待填写' }}</td>
+                            <td>{% if r.creator %}<span class="chip chip-{{ r.chip }}">{{ r.creator }}</span>{% else %}-{% endif %}</td>
+                            <td><span class="count-badge cb-cyan">{{ r.slot_count }} 个槽位</span></td>
+                            <td><span class="count-badge cb-green">{{ r.detail_count }} 条明细</span></td>
+                            <td class="action-cell">
+                                <button type="button" class="btn btn-outline-green btn-sm btn-toggle-detail" data-report="{{ r.id }}">查看详情</button>
+                                <a class="btn btn-yellow-outline btn-sm" href="{% url 'palladium:report_edit' r.id %}">编辑</a>
+                                <form method="post" action="{% url 'palladium:report_delete' r.id %}" class="inline-form"
+                                      data-confirm="确认删除该条生产日报？">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-red-outline btn-sm">删除</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr class="detail-row hidden" data-report="{{ r.id }}">
+                            <td colspan="11">
+                                <div class="detail-panel">
+                                    <div class="detail-block">
+                                        <h4>槽位数据</h4>
+                                        <table class="mini-table">
+                                            <thead><tr><th>槽位</th><th>类型</th><th>浓度</th><th>液位</th><th>状态</th></tr></thead>
+                                            <tbody>
+                                            {% for s in r.slot_data %}
+                                            <tr>
+                                                <td>{{ s.slot_no }}</td>
+                                                <td>{{ s.slot_type }}</td>
+                                                <td>{{ s.concentration }}</td>
+                                                <td>{{ s.liquid_level }}</td>
+                                                <td>{{ s.status|default:'无' }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="5" class="text-muted">无槽位数据</td></tr>
+                                            {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="detail-block">
+                                        <h4>生产明细</h4>
+                                        <table class="mini-table">
+                                            <thead><tr><th>时间</th><th>时间段</th><th>类别</th><th>料号</th><th>数量</th></tr></thead>
+                                            <tbody>
+                                            {% for d in r.details %}
+                                            <tr>
+                                                <td>{{ d.minutes }}分钟</td>
+                                                <td>{{ d.range }}</td>
+                                                <td>{{ d.category }}</td>
+                                                <td>{{ d.part_no }}</td>
+                                                <td>{{ d.quantity }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="5" class="text-muted">无生产明细</td></tr>
+                                            {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="11" class="empty-cell">暂无生产日报记录</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+        </div>
+    </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // 删除确认
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+        });
+    });
+
+    // 全选/取消全选
+    var selectAll = document.getElementById('select-all');
+    selectAll.addEventListener('change', function () {
+        document.querySelectorAll('.row-check').forEach(function (cb) { cb.checked = selectAll.checked; });
+    });
+
+    // 行内详情展开/收起
+    document.querySelectorAll('.btn-toggle-detail').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var row = document.querySelector('.detail-row[data-report="' + btn.dataset.report + '"]');
+            row.classList.toggle('hidden');
+            btn.textContent = row.classList.contains('hidden') ? '查看详情' : '收起详情';
+        });
+    });
+
+    // 批量删除
+    document.getElementById('btn-bulk-delete').addEventListener('click', function () {
+        var checked = document.querySelectorAll('.row-check:checked');
+        if (!checked.length) { window.alert('请先勾选要删除的记录'); return; }
+        if (window.confirm('确认删除选中的 ' + checked.length + ' 条生产日报？')) {
+            document.getElementById('bulkForm').submit();
+        }
+    });
+})();
+</script>
+{% endblock %}

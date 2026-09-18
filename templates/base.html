@@ -1,0 +1,108 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}欢迎使用钯盐系统{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<!-- 顶部导航栏 -->
+<header class="navbar">
+    <div class="navbar-inner">
+        <a class="navbar-brand" href="{% url 'palladium:dashboard' %}">钯盐系统</a>
+
+        <nav class="navbar-menu">
+            <ul>
+                <li class="has-dropdown">
+                    <a href="javascript:void(0)">常用输入 <span class="caret"></span></a>
+                    <div class="dropdown">
+                        <a href="{% url 'palladium:placeholder' '填写生产日报' %}">填写生产日报</a>
+                        <a href="{% url 'palladium:placeholder' '选金/点镀浓度输入' %}">选金/点镀浓度输入</a>
+                    </div>
+                </li>
+                <li class="has-dropdown">
+                    <a href="javascript:void(0)">变更时输入 <span class="caret"></span></a>
+                    <div class="dropdown">
+                        <a href="{% url 'palladium:part_create' %}">定义新料号</a>
+                        <a href="{% url 'palladium:line_create' %}">定义新产线</a>
+                        <a href="{% url 'palladium:param_create' %}">新增标准参数</a>
+                    </div>
+                </li>
+                <li class="has-dropdown">
+                    <a href="javascript:void(0)">导出 <span class="caret"></span></a>
+                    <div class="dropdown">
+                        <a href="{% url 'palladium:placeholder' 'Q线镀钯和钯盐每日统计' %}">Q线镀钯和钯盐每日统计</a>
+                    </div>
+                </li>
+                <li class="has-dropdown">
+                    <a href="javascript:void(0)">数据查看 <span class="caret"></span></a>
+                    <div class="dropdown">
+                        <div class="dropdown-group-title">基础数据</div>
+                        <a href="{% url 'palladium:product_list' %}">料号列表</a>
+                        <a href="{% url 'palladium:line_list' %}">产线列表</a>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-group-title">生产数据</div>
+                        <a href="{% url 'palladium:report_list' %}">生产日报查看</a>
+                        <a href="{% url 'palladium:concentration_list' %}">浓度数据查看</a>
+                        <a href="{% url 'palladium:param_history_list' %}">历史参数列表</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="{% url 'palladium:name_diagnosis' %}">名称诊断（客户/线长/IPQC）</a>
+                    </div>
+                </li>
+                <li>
+                    <a href="{% url 'palladium:placeholder' '启用/关闭产线' %}">启用/关闭产线</a>
+                </li>
+                <li>
+                    <a class="nav-danger" href="{% url 'palladium:placeholder' '下载数据库备份' %}">下载数据库备份</a>
+                </li>
+                <li>
+                    <a href="{% url 'palladium:placeholder' '操作说明' %}">操作说明</a>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="navbar-right">
+            <a class="btn btn-outline-green" href="{% url 'palladium:placeholder' '共享文档' %}">共享文档</a>
+            <a class="btn btn-outline" href="{% url 'palladium:placeholder' '备忘录' %}">📝 备忘录</a>
+            <div class="has-dropdown user-menu">
+                <a href="javascript:void(0)">{% if user.is_authenticated %}{{ user.username }}{% else %}未登录{% endif %} <span class="caret"></span></a>
+                <div class="dropdown dropdown-right">
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'admin:index' %}">管理后台</a>
+                        <a href="{% url 'admin:logout' %}">退出登录</a>
+                    {% else %}
+                        <a href="{% url 'admin:login' %}">登录</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+{% block page_body %}
+<main class="content">
+    {% include 'messages.html' %}
+    {% block content %}{% endblock %}
+</main>
+{% endblock %}
+
+<!-- 页脚 -->
+<footer class="footer">
+    <div>© 2025 钯盐系统. All rights reserved.</div>
+    <div class="footer-links">
+        <a href="{% url 'palladium:placeholder' '操作说明' %}">使用说明</a>
+        <a href="{% url 'palladium:placeholder' '联系我们' %}">联系我们</a>
+        <a href="javascript:void(0)" onclick="window.scrollTo({top:0,behavior:'smooth'})">回到顶部</a>
+    </div>
+</footer>
+
+<!-- 右下角浮动备忘录按钮 -->
+<button class="fab" title="备忘录" onclick="location.href='{% url 'palladium:placeholder' '备忘录' %}'">📝</button>
+
+<script src="{% static 'js/base.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

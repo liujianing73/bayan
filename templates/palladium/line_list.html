@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}产线列表 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="page-banner banner-with-actions">
+    <div>
+        <h1>产线列表</h1>
+        <div class="sort-links">
+            <span>排序方式：</span>
+            {% for text, url, active in sort_links %}
+            <a href="{{ url }}" class="{% if active %}active{% endif %}">{{ text }}</a>
+            {% if not forloop.last %}<span class="sep">|</span>{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    <a class="btn btn-danger-solid" href="{% url 'palladium:placeholder' '批量操作' %}">批量</a>
+</div>
+
+<main class="content form-page" style="max-width:100%;">
+    {% include 'messages.html' %}
+
+    <!-- 筛选工具栏 -->
+    <form method="get" class="list-toolbar" id="filterForm">
+        <div class="tool-item grow">
+            <label>产线名称</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="输入产线名称关键字" style="width:100%;">
+        </div>
+        <div class="tool-item grow">
+            <label>车间楼层</label>
+            <select name="floor" style="width:100%;">
+                <option value="">全部楼层</option>
+                {% for f in floors %}
+                <option value="{{ f }}" {% if floor == f %}selected{% endif %}>{{ f }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="tool-item grow">
+            <label>镀种</label>
+            <select name="plating" style="width:100%;">
+                <option value="">全部镀种</option>
+                {% for pt in plating_types %}
+                <option value="{{ pt.id }}" {% if plating_id == pt.id|stringformat:"s" %}selected{% endif %}>{{ pt.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-outline-green">筛选</button>
+        <a class="btn" href="{{ clear_url }}">清除</a>
+    </form>
+
+    <!-- 全选 -->
+    <div class="select-all-row">
+        <input type="checkbox" id="select-all">
+        <label for="select-all">全选/取消全选</label>
+    </div>
+
+    <!-- 产线分组 -->
+    {% for g in groups %}
+    <div class="line-group">
+        <div class="line-group-header">
+            <input type="checkbox" class="line-checkbox">
+            <div class="line-group-title">
+                <div class="line-title-line">
+                    <a class="line-name-link" href="{% url 'palladium:line_edit' g.line.id %}">{{ g.line.name }}</a>
+                    {% if g.line.line_no %}<a class="line-name-link" href="{% url 'palladium:line_edit' g.line.id %}">（{{ g.line.line_no }}）</a>{% endif %}
+                    <span class="line-meta">(车间楼层: {{ g.line.floor|default:'—' }})</span>
+                    <span class="line-meta">(镀种: {{ g.line.plating_type.name|default:'—' }})</span>
+                    <span class="line-actions">
+                        <a class="btn btn-yellow-outline btn-sm" href="{% url 'palladium:line_edit' g.line.id %}">编辑产线</a>
+                        <form method="post" action="{% url 'palladium:line_delete' g.line.id %}" class="inline-form"
+                              data-confirm="确认删除产线 {{ g.line.name }}？其槽位数据将一并删除。">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-red-outline btn-sm">删除产线</button>
+                        </form>
+                    </span>
+                </div>
+                <div class="line-creator">输入人员：
+                    {% if g.creator %}<span class="chip chip-{{ g.chip }}">{{ g.creator }}</span>{% else %}—{% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if g.slots %}
+        <div class="slot-table-wrap">
+            <table class="list-table slot-table">
+                <thead>
+                <tr>
+                    <th>槽位编号</th>
+                    <th>槽位类型</th>
+                    <th>槽位名称</th>
+                    <th>化学体系</th>
+                    <th>标准体积(L)</th>
+                    <th>标准浓度(g/L)</th>
+                    <th>槽位浮动单元值</th>
+                    <th>输入人员</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for s in g.slots %}
+                <tr>
+                    <td><span class="slot-no">{{ s.slot_no }}</span></td>
+                    <td><span class="type-badge {% if s.slot_type == '选金' %}tb-gold{% elif s.slot_type == '点镀' %}tb-cyan{% else %}tb-purple{% endif %}">{{ s.slot_type }}</span></td>
+                    <td>{{ s.name|default:'' }}</td>
+                    <td>{{ s.chemical }}</td>
+                    <td>{{ s.volume }}</td>
+                    <td>{{ s.concentration }}</td>
+                    <td>{{ s.float_value }}</td>
+                    <td>{% if s.creator %}<span class="chip chip-{{ s.chip }}">{{ s.creator }}</span>{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="slot-count-row">
+            共 {{ g.slots|length }} 个槽位
+            {% for t, n in g.type_counts %}
+            <span class="type-badge {% if t == '选金' %}tb-gold{% elif t == '点镀' %}tb-cyan{% else %}tb-purple{% endif %}">{{ t }}槽{{ n }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-slots">
+            <span>该产线暂无槽位数据</span>
+            <a class="btn btn-outline-green" href="{% url 'palladium:slot_add' g.line.id %}">添加槽位</a>
+        </div>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="empty-tip">没有符合条件的产线</div>
+    {% endfor %}
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // 删除确认
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+        });
+    });
+    // 全选/取消全选
+    var selectAll = document.getElementById('select-all');
+    selectAll.addEventListener('change', function () {
+        document.querySelectorAll('.line-checkbox').forEach(function (cb) {
+            cb.checked = selectAll.checked;
+        });
+    });
+})();
+</script>
+{% endblock %}

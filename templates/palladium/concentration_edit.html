@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}编辑浓度数据 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="edit-header">
+    <h1>编辑浓度数据</h1>
+    <a class="btn btn-gray" href="{% url 'palladium:concentration_list' %}">返回</a>
+</div>
+
+<main class="content form-page" style="max-width:100%;">
+    {% include 'messages.html' %}
+
+    <!-- 基本信息（只读） -->
+    <section class="form-card">
+        <div class="form-card-header"><h2>基本信息</h2></div>
+        <div class="basic-info-block">
+            <div class="basic-info-line">
+                <span><strong>产线：</strong>{{ record.line.name }}</span>
+                <span><strong>取样日期：</strong>{{ record.sample_date|date:'Y/m/d' }}</span>
+                <span><strong>取样时间：</strong>{{ record.sample_time|date:'H:i' }}</span>
+                <span><strong>车间楼层：</strong>{{ record.line.floor|default:'—' }}</span>
+            </div>
+            <div class="basic-info-line">
+                <span><strong>线长：</strong>{{ record.line_leader|default:'待填写' }}</span>
+                <span><strong>IPQC：</strong>{{ record.ipqc|default:'待填写' }}</span>
+            </div>
+        </div>
+    </section>
+
+    <form method="post" id="concForm" novalidate>
+        {% csrf_token %}
+
+        <!-- 槽位浓度数据 -->
+        <section class="form-card">
+            <div class="form-card-header">
+                <h2>槽位浓度数据</h2>
+                <a class="btn btn-red" href="javascript:void(0)" id="btn-clear-all">一键删除所有浓度数据</a>
+            </div>
+            <div class="form-card-body" style="padding-top:10px;">
+                <div class="slot-table-wrap no-shadow">
+                    <table class="list-table dark-table">
+                        <thead>
+                        <tr>
+                            <th>槽位编号</th>
+                            <th>槽位类型</th>
+                            <th>槽位开缸状态</th>
+                            <th>槽位名称/类型</th>
+                            <th>浓度检测状态</th>
+                            <th>浓度 (g/L)</th>
+                            <th>罩头类型</th>
+                            <th>液位 (cm)</th>
+                            <th>升数 (L)</th>
+                            <th>钯盐添加量 (g)</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for s in slot_rows %}
+                        <tr>
+                            <td><span class="slot-no-blue">{{ s.slot_no }}</span><input type="hidden" name="c_id" value="{{ s.id }}"></td>
+                            <td><span class="type-badge {% if s.slot_type == '选金' %}tb-gold{% elif s.slot_type == '点镀' %}tb-cyan{% else %}tb-purple{% endif %}">{{ s.slot_type }}</span></td>
+                            <td>
+                                <select name="c_open" class="cell-select">
+                                    {% for o in open_status_options %}
+                                    <option value="{{ o }}" {% if s.open_status == o %}selected{% endif %}>{{ o }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="cell-text">{{ s.slot_name }}</td>
+                            <td>
+                                <select name="c_test" class="cell-select test-select">
+                                    {% for t in test_status_options %}
+                                    <option value="{{ t }}" {% if s.test_status == t %}selected{% endif %}>{{ t }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input type="text" name="c_conc" class="cell-input lock-field" value="{{ s.concentration }}" {% if s.test_status != '检测' %}disabled{% endif %}></td>
+                            <td>
+                                <select name="c_grass" class="cell-select grass-select lock-field" {% if s.test_status != '检测' %}disabled{% endif %}>
+                                    <option value="">{% if s.test_status != '检测' %}未检测状态下不可选择{% else %}请选择罩头类型{% endif %}</option>
+                                    {% for g in grass_types %}
+                                    <option value="{{ g }}" {% if s.grass_type == g %}selected{% endif %}>{{ g }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input type="text" name="c_liquid" class="cell-input lock-field" value="{{ s.liquid_level }}" {% if s.test_status != '检测' %}disabled{% endif %}></td>
+                            <td>
+                                <div class="cell-addon">
+                                    <input type="text" class="cell-input cell-readonly" value="{{ s.liters }}" readonly>
+                                    <span class="addon-mini">自动</span>
+                                </div>
+                            </td>
+                            <td><input type="text" name="c_gold" class="cell-input" value="{{ s.gold_salt }}"></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="10" class="empty-cell">无槽位浓度数据</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 分析员信息 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>分析员信息</h2></div>
+            <div class="form-card-body">
+                <div class="form-item" style="max-width:640px;">
+                    <label>分析员</label>
+                    <input type="text" name="analyst" value="{{ record.analyst }}" placeholder="待填写" maxlength="50">
+                </div>
+                <div class="center-actions" style="margin:20px 0 0;">
+                    <button type="submit" class="btn btn-green btn-lg">保存修改</button>
+                    <a href="{% url 'palladium:concentration_list' %}" class="btn btn-gray btn-lg">取消</a>
+                </div>
+            </div>
+        </section>
+    </form>
+
+    <!-- 一键删除（独立表单） -->
+    <form method="post" action="{% url 'palladium:concentration_slots_clear' record.id %}" id="clearForm"
+          data-confirm="确认删除所有浓度数据？">
+        {% csrf_token %}
+    </form>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // 一键删除确认（链接触发独立表单）
+    var clearForm = document.getElementById('clearForm');
+    document.getElementById('btn-clear-all').addEventListener('click', function () {
+        if (window.confirm('确认删除所有浓度数据？')) clearForm.submit();
+    });
+
+    // 罩头/浓度/液位联动：未检测时锁定
+    function updateLock(select) {
+        var row = select.closest('tr');
+        var grass = row.querySelector('.grass-select');
+        var locked = select.value !== '检测';
+        grass.disabled = locked;
+        grass.options[0].text = locked ? '未检测状态下不可选择' : '请选择罩头类型';
+        if (locked) grass.value = '';
+        row.querySelectorAll('.lock-field').forEach(function (f) {
+            f.disabled = locked;
+        });
+    }
+    document.querySelectorAll('.test-select').forEach(function (sel) {
+        sel.addEventListener('change', function () { updateLock(sel); });
+    });
+})();
+</script>
+{% endblock %}

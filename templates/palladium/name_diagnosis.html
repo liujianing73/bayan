@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}名称诊断 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="edit-header">
+    <h1>名称诊断</h1>
+    <a class="btn btn-gray" href="{% url 'palladium:dashboard' %}">返回</a>
+</div>
+
+<main class="content form-page" style="max-width:100%;">
+    {% include 'messages.html' %}
+
+    <div class="diag-grid">
+        <!-- 客户名称 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>客户名称</h2></div>
+            <div class="form-card-body" style="padding-top:10px;">
+                <table class="list-table mini-table">
+                    <thead><tr><th>名称</th><th style="text-align:right;">使用次数</th><th style="text-align:center;">操作</th></tr></thead>
+                    <tbody>
+                    {% for r in customers %}
+                    <tr>
+                        <td>{{ r.name }}</td>
+                        <td style="text-align:right;">{{ r.usage }}</td>
+                        <td style="text-align:center;">
+                            <a class="btn btn-outline-green btn-sm" href="{% url 'palladium:product_list' %}?customer={{ r.id }}">查看料号</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-muted">暂无客户</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 线长 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>线长</h2></div>
+            <div class="form-card-body" style="padding-top:10px;">
+                <table class="list-table mini-table">
+                    <thead><tr><th>名称</th><th style="text-align:right;">使用次数</th><th style="text-align:center;">操作</th></tr></thead>
+                    <tbody>
+                    {% for r in leaders %}
+                    <tr>
+                        <td>{{ r.name }}</td>
+                        <td style="text-align:right;">{{ r.usage }}</td>
+                        <td style="text-align:center;">
+                            <a class="btn btn-outline-green btn-sm"
+                               href="{% if r.blank %}{% url 'palladium:report_list' %}{% else %}{% url 'palladium:report_list' %}?leader={{ r.name|urlencode }}{% endif %}">查看日报</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-muted">暂无线长记录</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- IPQC -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>IPQC</h2></div>
+            <div class="form-card-body" style="padding-top:10px;">
+                <table class="list-table mini-table">
+                    <thead><tr><th>名称</th><th style="text-align:right;">使用次数</th><th style="text-align:center;">操作</th></tr></thead>
+                    <tbody>
+                    {% for r in ipqcs %}
+                    <tr>
+                        <td>{{ r.name }}</td>
+                        <td style="text-align:right;">{{ r.usage }}</td>
+                        <td style="text-align:center;">
+                            <a class="btn btn-outline-green btn-sm"
+                               href="{% if r.blank %}{% url 'palladium:report_list' %}{% else %}{% url 'palladium:report_list' %}?ipqc={{ r.name|urlencode }}{% endif %}">查看日报</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-muted">暂无IPQC记录</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</main>
+{% endblock %}

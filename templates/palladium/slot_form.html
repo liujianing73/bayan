@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="edit-header">
+    <h1>{{ page_title }}</h1>
+    <a class="btn btn-gray" href="{% url 'palladium:line_list' %}">返回产线</a>
+</div>
+
+<main class="content form-page">
+    {% include 'messages.html' %}
+
+    <!-- 产线信息条 -->
+    <div class="info-bar">
+        <span><strong>产线：</strong>{{ line.name }}</span>
+        <span><strong>车间楼层：</strong>{{ line.floor|default:'—' }}</span>
+        <span><strong>镀种：</strong>{{ line.plating_type.name|default:'—' }}</span>
+    </div>
+
+    <form method="post" id="slotForm" novalidate>
+        {% csrf_token %}
+
+        <!-- 槽位信息 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>槽位信息</h2></div>
+            <div class="form-card-body">
+                <div class="field-row cols-2">
+                    <div class="form-item">
+                        <label>槽位编号 <span class="req">*</span></label>
+                        <input type="text" name="slot_no" id="id_slot_no"
+                               value="{{ slot.slot_no|default:'' }}" placeholder="{{ suggested_no }}">
+                        <div class="hint">建议使用槽位编号：{{ suggested_no }}</div>
+                        <div class="error-msg hidden"></div>
+                    </div>
+                    <div class="form-item">
+                        <label>槽位类型 <span class="req">*</span></label>
+                        <select name="slot_type">
+                            <option value="">请选择槽位类型</option>
+                            {% for st in slot_types %}
+                            <option value="{{ st }}" {% if slot.slot_type == st %}selected{% endif %}>{{ st }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="error-msg hidden"></div>
+                    </div>
+                </div>
+
+                <div class="field-row cols-2">
+                    <div class="form-item">
+                        <label>槽位名称</label>
+                        <input type="text" name="name" value="{{ slot.name|default:'' }}"
+                               placeholder="例如：选金槽1、点镀槽A等" maxlength="100">
+                    </div>
+                    <div class="form-item">
+                        <label>化学体系</label>
+                        <select name="chemical_system">
+                            <option value="">请选择化学体系</option>
+                            {% for cs in chemical_systems %}
+                            <option value="{{ cs.id }}" {% if slot.chemical_system_id == cs.id %}selected{% endif %}>{{ cs.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field-row cols-3">
+                    <div class="form-item">
+                        <label>标准体积（L） <span class="req">*</span></label>
+                        <input type="text" name="std_volume" value="{{ slot.std_volume|default:'' }}" placeholder="例如：100.00">
+                        <div class="error-msg hidden"></div>
+                    </div>
+                    <div class="form-item">
+                        <label>标准浓度（g/L） <span class="req">*</span></label>
+                        <input type="text" name="std_concentration" value="{{ slot.std_concentration|default:'' }}" placeholder="例如：2.500">
+                        <div class="error-msg hidden"></div>
+                    </div>
+                    <div class="form-item">
+                        <label>槽位浮动单元值</label>
+                        <input type="text" name="float_value" value="{{ slot.float_value|default:'' }}" placeholder="例如：4.80">
+                    </div>
+                </div>
+
+                <div class="center-actions" style="margin:16px 0 0;">
+                    <button type="submit" class="btn btn-green btn-lg">{{ page_title }}</button>
+                    <a href="{% url 'palladium:line_edit' line.id %}" class="btn btn-gray btn-lg">取消</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 填写说明 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>填写说明</h2></div>
+            <div class="form-card-body help-grid">
+                <div>
+                    <p><strong>槽位编号：</strong>必须是正整数，在同一产线内不能重复</p>
+                    <p><strong>槽位类型：</strong>选择"选金"、"点镀"或"镀钯"</p>
+                    <p><strong>标准体积：</strong>槽位的标准容量，单位为升（L）</p>
+                </div>
+                <div>
+                    <p><strong>标准浓度：</strong>槽位的标准浓度，单位为g/L</p>
+                    <p><strong>槽位名称：</strong>可选，便于识别的名称</p>
+                    <p><strong>化学体系：</strong>可选，选择使用的化学体系</p>
+                </div>
+            </div>
+        </section>
+    </form>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('slotForm');
+
+    function setError(el, msg) {
+        var wrap = el.closest('.form-item');
+        var err = wrap.querySelector('.error-msg');
+        if (msg) {
+            el.classList.add('is-invalid');
+            err.innerHTML = '<div>' + msg + '</div><div>此字段为必填项</div>';
+            err.classList.remove('hidden');
+        } else {
+            el.classList.remove('is-invalid');
+            err.textContent = '';
+            err.classList.add('hidden');
+        }
+    }
+
+    form.addEventListener('change', function (e) {
+        if (e.target.classList.contains('is-invalid')) setError(e.target, null);
+    });
+    form.addEventListener('input', function (e) {
+        if (e.target.classList.contains('is-invalid')) setError(e.target, null);
+    });
+
+    form.addEventListener('submit', function (e) {
+        var ok = true;
+        var no = document.getElementById('id_slot_no');
+        if (!no.value.trim() || !/^\d+$/.test(no.value.trim()) || parseInt(no.value, 10) <= 0) {
+            setError(no, '槽位编号必须是正整数');
+            ok = false;
+        } else {
+            setError(no, null);
+        }
+        ['slot_type', 'std_volume', 'std_concentration'].forEach(function (fieldName) {
+            var el = form.querySelector('[name="' + fieldName + '"]');
+            if (!el.value) {
+                setError(el, el.tagName === 'SELECT' ? '请选择槽位类型' : '请输入数值');
+                ok = false;
+            } else {
+                setError(el, null);
+            }
+        });
+        if (!ok) {
+            e.preventDefault();
+            var first = form.querySelector('.is-invalid');
+            if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+})();
+</script>
+{% endblock %}

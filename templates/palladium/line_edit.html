@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}编辑产线 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="edit-header">
+    <h1>编辑产线</h1>
+    <a class="btn btn-gray" href="{% url 'palladium:line_list' %}">返回</a>
+</div>
+
+<main class="content form-page">
+    {% include 'messages.html' %}
+
+    <!-- 产线信息 -->
+    <section class="form-card">
+        <div class="form-card-header"><h2>产线信息</h2></div>
+        <div class="form-card-body">
+            <form method="post" id="lineForm" novalidate>
+                {% csrf_token %}
+                <div class="field-row cols-2">
+                    <div class="form-item">
+                        <label>产线名称 <span class="req">*</span></label>
+                        <input type="text" name="name" id="id_name" value="{{ line.name }}" maxlength="50">
+                        <div class="error-msg hidden"></div>
+                    </div>
+                    <div class="form-item">
+                        <label>车间楼层</label>
+                        <select name="floor">
+                            <option value="">请选择车间楼层</option>
+                            {% for f in floors %}
+                            <option value="{{ f }}" {% if line.floor == f %}selected{% endif %}>{{ f }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row cols-2">
+                    <div class="form-item">
+                        <label>镀种类型</label>
+                        <select name="plating_type">
+                            <option value="">请选择镀种</option>
+                            {% for pt in plating_types %}
+                            <option value="{{ pt.id }}" {% if line.plating_type_id == pt.id %}selected{% endif %}>{{ pt.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-item">
+                        <label>产线状态</label>
+                        <div class="switch-row">
+                            <label class="switch">
+                                <input type="checkbox" name="is_active" {% if line.is_active %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </label>
+                            <span class="switch-label">启用产线</span>
+                        </div>
+                        <div class="hint">禁用后，此产线将不会显示在生产日报和浓度输入页面中</div>
+                    </div>
+                </div>
+                <div class="center-actions" style="margin:10px 0 0;">
+                    <button type="submit" class="btn btn-green btn-lg">保存修改</button>
+                    <a href="{% url 'palladium:line_list' %}" class="btn btn-gray btn-lg">取消</a>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- 槽位信息 -->
+    <section class="form-card">
+        <div class="form-card-header">
+            <h2>槽位信息（{{ slot_count }} 个）</h2>
+            <div class="header-actions">
+                <a class="btn btn-green" href="{% url 'palladium:slot_add' line.id %}">添加槽位</a>
+                <form method="post" action="{% url 'palladium:line_slots_clear' line.id %}" class="inline-form"
+                      data-confirm="确认删除该产线的所有槽位？">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-red" {% if slot_count == 0 %}disabled{% endif %}>一键删除所有槽位</button>
+                </form>
+            </div>
+        </div>
+        <div class="form-card-body">
+            {% if slot_count %}
+            <div class="slot-table-wrap no-shadow">
+                <table class="list-table slot-table">
+                    <thead>
+                    <tr>
+                        <th>槽位编号</th>
+                        <th>槽位类型</th>
+                        <th>槽位名称</th>
+                        <th>化学体系</th>
+                        <th>标准体积(L)</th>
+                        <th>标准浓度(g/L)</th>
+                        <th>槽位浮动单元值</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for s in line.slots.all %}
+                    <tr>
+                        <td><span class="slot-no">{{ s.slot_no }}</span></td>
+                        <td><span class="type-badge {% if s.slot_type == '选金' %}tb-gold{% elif s.slot_type == '点镀' %}tb-cyan{% else %}tb-purple{% endif %}">{{ s.slot_type }}</span></td>
+                        <td>{{ s.name }}</td>
+                        <td>{{ s.chemical_system.name|default:'' }}</td>
+                        <td>{{ s.std_volume }}</td>
+                        <td>{{ s.std_concentration }}</td>
+                        <td>{{ s.float_value }}</td>
+                        <td><a class="btn btn-yellow-outline btn-sm" href="{% url 'palladium:slot_edit' line.id s.id %}">编辑</a></td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-slots" style="box-shadow:none;">
+                <span>该产线暂无槽位数据</span>
+                <a class="btn btn-outline-green" href="{% url 'palladium:slot_add' line.id %}">添加槽位</a>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // 一键删除确认
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+        });
+    });
+
+    var form = document.getElementById('lineForm');
+    form.addEventListener('submit', function (e) {
+        var name = document.getElementById('id_name');
+        if (!name.value.trim()) {
+            name.classList.add('is-invalid');
+            var wrap = name.closest('.form-item');
+            var err = wrap.querySelector('.error-msg');
+            err.innerHTML = '<div>请输入产线名称</div><div>此字段为必填项</div>';
+            err.classList.remove('hidden');
+            e.preventDefault();
+        }
+    });
+})();
+</script>
+{% endblock %}

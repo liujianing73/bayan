@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}定义新产线 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="page-banner">
+    <h1>槽位基本资料定义</h1>
+    <div class="required-tip">标有 <span class="req">*</span> 的字段为必填项</div>
+</div>
+
+<main class="content form-page">
+    {% include 'messages.html' %}
+
+    <form method="post" id="lineForm" novalidate>
+        {% csrf_token %}
+
+        <!-- 产线信息 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>产线信息</h2></div>
+            <div class="form-card-body">
+                <div class="field-row cols-3">
+                    <div class="form-item">
+                        <label>车间楼层 <span class="req">*</span></label>
+                        <select name="floor" id="id_floor">
+                            <option value="">请选择车间楼层</option>
+                            {% for f in floors %}
+                            <option value="{{ f }}">{{ f }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="error-msg hidden"></div>
+                    </div>
+                    <div class="form-item">
+                        <label>产线名称 <span class="req">*</span></label>
+                        <input type="text" name="name" id="id_name" maxlength="50">
+                        <div class="error-msg hidden"></div>
+                    </div>
+                    <div class="form-item">
+                        <label>镀种（可选） <span class="req">*</span></label>
+                        <div class="with-btn">
+                            <select name="plating_type" id="id_plating_type">
+                                <option value="">请选择镀种</option>
+                                {% for pt in plating_types %}
+                                <option value="{{ pt.id }}">{{ pt.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-green" id="btn-show-plating">添加镀种</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 添加槽位按钮行 -->
+        <div class="slot-toolbar">
+            <button type="button" class="btn btn-green btn-lg" id="btn-add-slot">添加槽位</button>
+            <span class="slot-count">当前槽位数: <span id="slot-count">0</span></span>
+        </div>
+
+        <!-- 添加新镀种面板 -->
+        <section class="form-card hidden" id="add-plating-panel">
+            <div class="form-card-header"><h2>添加新镀种</h2></div>
+            <div class="form-card-body">
+                <div class="form-item">
+                    <label>镀种名称</label>
+                    <div class="with-btn">
+                        <input type="text" id="new-plating-name" placeholder="输入新的镀种名称" maxlength="50">
+                        <button type="button" class="btn btn-green" id="btn-confirm-plating">确认添加</button>
+                        <button type="button" class="btn btn-gray" id="btn-cancel-plating">取消</button>
+                    </div>
+                    <div class="hint">添加新的镀种类型后，将自动选择为当前产线的镀种。</div>
+                    <div class="error-msg hidden" id="plating-error"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 槽位卡片列表 -->
+        <div id="slot-list"></div>
+
+        <div class="form-actions">
+            <a href="{% url 'palladium:dashboard' %}" class="btn btn-gray btn-lg">返回</a>
+            <button type="submit" class="btn btn-green btn-lg">提交</button>
+        </div>
+    </form>
+</main>
+
+<!-- 槽位卡片模板 -->
+<template id="slot-template">
+    <section class="form-card slot-card">
+        <div class="form-card-header">
+            <h2 class="slot-title">槽位 1</h2>
+            <button type="button" class="btn btn-red btn-sm btn-delete-slot">删除</button>
+        </div>
+        <div class="form-card-body">
+            <div class="field-row cols-2">
+                <div class="form-item">
+                    <label>槽位类型 <span class="req">*</span></label>
+                    <select name="slot_type">
+                        <option value="">请选择</option>
+                        {% for st in slot_types %}
+                        <option value="{{ st }}">{{ st }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="error-msg hidden"></div>
+                </div>
+                <div class="form-item">
+                    <label>槽位名称 <span class="req">*</span></label>
+                    <input type="text" name="slot_name" maxlength="100">
+                    <div class="error-msg hidden"></div>
+                </div>
+            </div>
+
+            <div class="form-item">
+                <label>项目药水系统 <span class="req">*</span></label>
+                <select name="chem_system" class="chem-select">
+                    <option value="">请选择</option>
+                    {% for cs in chemical_systems %}
+                    <option value="{{ cs.id }}">{{ cs.name }}</option>
+                    {% endfor %}
+                    <option value="__other__">其他</option>
+                </select>
+                <div class="other-row hidden">
+                    <input type="text" class="other-chem-input" placeholder="输入新的化学系统名称" maxlength="100">
+                    <button type="button" class="btn btn-green btn-sm other-confirm">确认</button>
+                    <button type="button" class="btn btn-gray btn-sm other-cancel">取消</button>
+                </div>
+                <div class="error-msg hidden"></div>
+            </div>
+
+            <div class="field-row cols-3">
+                <div class="form-item">
+                    <label>槽位标准体积 <span class="req">*</span></label>
+                    <input type="text" name="std_volume">
+                    <div class="error-msg hidden"></div>
+                </div>
+                <div class="form-item">
+                    <label>槽位浮动单元值 <span class="req">*</span></label>
+                    <div class="input-addon">
+                        <input type="text" name="float_value">
+                        <span class="addon">L/CM</span>
+                    </div>
+                    <div class="error-msg hidden"></div>
+                </div>
+                <div class="form-item">
+                    <label>管控中心值 <span class="req">*</span></label>
+                    <input type="text" name="control_value">
+                    <div class="error-msg hidden"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var API_PLATING = "{% url 'palladium:api_plating_type_add' %}";
+    var API_CHEM = "{% url 'palladium:api_chemical_system_add' %}";
+
+    var form = document.getElementById('lineForm');
+    var slotList = document.getElementById('slot-list');
+    var slotTemplate = document.getElementById('slot-template');
+    var slotCountEl = document.getElementById('slot-count');
+
+    function getCsrf() {
+        return window.getCsrfToken ? window.getCsrfToken() : '';
+    }
+
+    function postForm(url, name) {
+        var body = new URLSearchParams();
+        body.append('name', name);
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf() },
+            body: body,
+        }).then(function (resp) {
+            return resp.json().then(function (data) {
+                if (!resp.ok || !data.ok) throw new Error(data.error || '请求失败');
+                return data;
+            });
+        });
+    }
+
+    /* ============ 错误提示 ============ */
+    function setError(el, msg) {
+        var wrap = el.closest('.form-item');
+        var err = wrap.querySelector('.error-msg');
+        if (msg) {
+            el.classList.add('is-invalid');
+            err.innerHTML = '<div>' + msg + '</div><div>此字段为必填项</div>';
+            err.classList.remove('hidden');
+        } else {
+            el.classList.remove('is-invalid');
+            err.textContent = '';
+            err.classList.add('hidden');
+        }
+    }
+
+    function validateRequired(el, msg) {
+        var value = (el.value || '').trim();
+        if (el.tagName === 'SELECT' && value === '__other__') {
+            // 选择“其他”但未确认新名称
+            var row = el.closest('.form-item').querySelector('.other-row');
+            var input = row ? row.querySelector('.other-chem-input') : null;
+            if (input && input.value.trim()) {
+                setError(el, null);
+                return true;
+            }
+            setError(el, '请先点击「确认」完成新药水系统添加');
+            return false;
+        }
+        if (!value) {
+            setError(el, msg);
+            return false;
+        }
+        setError(el, null);
+        return true;
+    }
+
+    form.addEventListener('input', function (e) {
+        if (e.target.classList.contains('is-invalid')) setError(e.target, null);
+    });
+    form.addEventListener('change', function (e) {
+        if (e.target.classList.contains('is-invalid')) setError(e.target, null);
+    });
+
+    form.addEventListener('submit', function (e) {
+        var ok = true;
+        ok = validateRequired(document.getElementById('id_floor'), '请选择车间楼层') && ok;
+        ok = validateRequired(document.getElementById('id_name'), '请输入产线名称') && ok;
+
+        slotList.querySelectorAll('.slot-card').forEach(function (card, idx) {
+            var no = idx + 1;
+            ok = validateRequired(card.querySelector('select[name="slot_type"]'), '请选择槽位类型') && ok;
+            ok = validateRequired(card.querySelector('input[name="slot_name"]'), '请输入槽位名称') && ok;
+            ok = validateRequired(card.querySelector('.chem-select'), '请选择项目药水系统') && ok;
+            ok = validateRequired(card.querySelector('input[name="std_volume"]'), '请输入槽位标准体积') && ok;
+            ok = validateRequired(card.querySelector('input[name="float_value"]'), '请输入槽位浮动单元值') && ok;
+            ok = validateRequired(card.querySelector('input[name="control_value"]'), '请输入管控中心值') && ok;
+        });
+
+        if (!ok) {
+            e.preventDefault();
+            var firstInvalid = form.querySelector('.is-invalid');
+            if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+
+    /* ============ 添加镀种 ============ */
+    var platingPanel = document.getElementById('add-plating-panel');
+    var platingInput = document.getElementById('new-plating-name');
+    var platingError = document.getElementById('plating-error');
+    var platingSelect = document.getElementById('id_plating_type');
+
+    document.getElementById('btn-show-plating').addEventListener('click', function () {
+        platingPanel.classList.toggle('hidden');
+        if (!platingPanel.classList.contains('hidden')) platingInput.focus();
+    });
+
+    document.getElementById('btn-cancel-plating').addEventListener('click', function () {
+        platingPanel.classList.add('hidden');
+        platingInput.value = '';
+        platingError.classList.add('hidden');
+    });
+
+    document.getElementById('btn-confirm-plating').addEventListener('click', function () {
+        var name = platingInput.value.trim();
+        if (!name) {
+            platingError.textContent = '请输入镀种名称';
+            platingError.classList.remove('hidden');
+            return;
+        }
+        postForm(API_PLATING, name).then(function (data) {
+            var exists = Array.from(platingSelect.options).some(function (o) { return o.value == data.id; });
+            if (!exists) {
+                var opt = document.createElement('option');
+                opt.value = data.id;
+                opt.textContent = data.name;
+                platingSelect.appendChild(opt);
+            }
+            platingSelect.value = data.id;
+            platingPanel.classList.add('hidden');
+            platingInput.value = '';
+            platingError.classList.add('hidden');
+        }).catch(function (err) {
+            platingError.textContent = err.message;
+            platingError.classList.remove('hidden');
+        });
+    });
+
+    /* ============ 槽位卡片 ============ */
+    function slotCount() {
+        return slotList.querySelectorAll('.slot-card').length;
+    }
+
+    function renumber() {
+        slotList.querySelectorAll('.slot-card').forEach(function (card, i) {
+            card.querySelector('.slot-title').textContent = '槽位 ' + (i + 1);
+        });
+        slotCountEl.textContent = slotCount();
+    }
+
+    document.getElementById('btn-add-slot').addEventListener('click', function () {
+        slotList.appendChild(slotTemplate.content.cloneNode(true));
+        renumber();
+    });
+
+    slotList.addEventListener('click', function (e) {
+        var del = e.target.closest('.btn-delete-slot');
+        if (del) {
+            del.closest('.slot-card').remove();
+            renumber();
+            return;
+        }
+        var confirmBtn = e.target.closest('.other-confirm');
+        if (confirmBtn) {
+            var row = confirmBtn.closest('.other-row');
+            var item = confirmBtn.closest('.form-item');
+            var select = item.querySelector('.chem-select');
+            var input = row.querySelector('.other-chem-input');
+            var name = input.value.trim();
+            if (!name) {
+                input.classList.add('is-invalid');
+                input.focus();
+                return;
+            }
+            input.classList.remove('is-invalid');
+            postForm(API_CHEM, name).then(function (data) {
+                var exists = Array.from(select.options).some(function (o) { return o.value == data.id; });
+                if (!exists) {
+                    var opt = document.createElement('option');
+                    opt.value = data.id;
+                    opt.textContent = data.name;
+                    select.insertBefore(opt, select.querySelector('option[value="__other__"]'));
+                }
+                select.value = data.id;
+                row.classList.add('hidden');
+                input.value = '';
+                setError(select, null);
+            }).catch(function () { });
+            return;
+        }
+        var cancelBtn = e.target.closest('.other-cancel');
+        if (cancelBtn) {
+            var row2 = cancelBtn.closest('.other-row');
+            var item2 = cancelBtn.closest('.form-item');
+            row2.classList.add('hidden');
+            row2.querySelector('.other-chem-input').value = '';
+            item2.querySelector('.chem-select').value = '';
+        }
+    });
+
+    slotList.addEventListener('change', function (e) {
+        if (e.target.classList.contains('chem-select')) {
+            var item = e.target.closest('.form-item');
+            var row = item.querySelector('.other-row');
+            if (e.target.value === '__other__') {
+                row.classList.remove('hidden');
+                row.querySelector('.other-chem-input').focus();
+            } else {
+                row.classList.add('hidden');
+                row.querySelector('.other-chem-input').value = '';
+            }
+        }
+    });
+
+    slotList.addEventListener('input', function (e) {
+        if (e.target.classList.contains('is-invalid')) e.target.classList.remove('is-invalid');
+    });
+
+    renumber();
+})();
+</script>
+{% endblock %}

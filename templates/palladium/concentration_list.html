@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}浓度数据查看 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="edit-header">
+    <h1>浓度数据查看</h1>
+    <a class="btn btn-gray" href="{% url 'palladium:dashboard' %}">返回</a>
+</div>
+
+<main class="content form-page" style="max-width:100%;">
+    {% include 'messages.html' %}
+
+    <!-- 筛选条件 -->
+    <form method="get" class="form-card" id="filterForm">
+        <div class="form-card-header"><h2>筛选条件</h2></div>
+        <div class="form-card-body">
+            <div class="filter-inline">
+                <div class="form-item" style="margin-bottom:0;">
+                    <label>产线</label>
+                    <select name="line">
+                        <option value="">全部产线</option>
+                        {% for line in lines %}
+                        <option value="{{ line.id }}" {% if line_id == line.id|stringformat:"s" %}selected{% endif %}>{{ line.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-item" style="margin-bottom:0;">
+                    <label>槽位类型</label>
+                    <select name="slot_type">
+                        <option value="">全部类型</option>
+                        {% for st in slot_types %}
+                        <option value="{{ st }}" {% if slot_type_f == st %}selected{% endif %}>{{ st }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-item" style="margin-bottom:0;">
+                    <label>开始日期</label>
+                    <input type="date" name="start" value="{{ start }}">
+                </div>
+                <div class="form-item" style="margin-bottom:0;">
+                    <label>结束日期</label>
+                    <input type="date" name="end" value="{{ end }}">
+                </div>
+                <button type="submit" class="btn btn-green filter-btn">筛选</button>
+                <a class="btn filter-btn" href="{{ clear_url }}">清除</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- 浓度数据记录 -->
+    <section class="form-card">
+        <div class="form-card-header">
+            <h2>浓度数据记录</h2>
+            <button type="button" class="btn btn-red" id="btn-bulk-delete">批量删除</button>
+        </div>
+        <div class="form-card-body" style="padding-top:10px;">
+            <form method="post" action="{% url 'palladium:concentration_bulk_delete' %}" id="bulkForm">
+                {% csrf_token %}
+                <div class="slot-table-wrap no-shadow">
+                    <table class="list-table dark-table conc-table">
+                        <thead>
+                        <tr>
+                            <th class="col-check"><input type="checkbox" id="select-all"></th>
+                            <th>产线</th>
+                            <th>车间楼层</th>
+                            <th>槽位编号</th>
+                            <th>槽位类型</th>
+                            <th>槽位名称</th>
+                            <th>化学体系</th>
+                            <th>浓度</th>
+                            <th>液位</th>
+                            <th>升数</th>
+                            <th>钯盐添加量 (g)<span class="th-sub">钯盐按槽位</span></th>
+                            <th>槽位状态</th>
+                            <th>浓度检测状态</th>
+                            <th>取样日期</th>
+                            <th>取样时间</th>
+                            <th>线长</th>
+                            <th>IPQC</th>
+                            <th>输入人员</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="col-check"><input type="checkbox" class="row-check" name="ids" value="{{ r.id }}"></td>
+                            <td>
+                                <div class="cell-line-name">{{ r.line.name }}</div>
+                                <div class="cell-sub">{{ r.line.plating_type.name|default:'' }}</div>
+                            </td>
+                            <td>{{ r.floor }}</td>
+                            <td><span class="slot-no-blue">{{ r.slot_no }}</span></td>
+                            <td><span class="type-badge {% if r.slot_type == '选金' %}tb-gold{% elif r.slot_type == '点镀' %}tb-cyan{% elif r.slot_type == '镀镍' %}tb-orange{% else %}tb-purple{% endif %}">{{ r.slot_type }}</span></td>
+                            <td>{{ r.slot_name }}</td>
+                            <td>{{ r.chemical }}</td>
+                            <td class="conc-value">{{ r.concentration }} <span class="unit">g/L</span></td>
+                            <td class="liquid-value">{{ r.liquid_level }} <span class="unit">cm</span></td>
+                            <td>{% if r.liters != '-' %}<span class="liters-value">{{ r.liters }}</span> <span class="unit">L</span>{% else %}-{% endif %}</td>
+                            <td>{{ r.gold_salt }}</td>
+                            <td><span class="status-badge sb-dark">{{ r.open_status }}</span></td>
+                            <td><span class="status-badge {% if r.test_status == '检测' %}sb-green{% else %}sb-yellow{% endif %}">{{ r.test_status }}</span></td>
+                            <td>{{ r.sample_date|date:'Y/m/d' }}</td>
+                            <td>{{ r.sample_time }}</td>
+                            <td class="{% if not r.leader %}text-muted{% endif %}">{{ r.leader|default:'待填写' }}</td>
+                            <td class="{% if not r.ipqc %}text-muted{% endif %}">{{ r.ipqc|default:'待填写' }}</td>
+                            <td>{% if r.creator %}<span class="chip chip-{{ r.chip }}">{{ r.creator }}</span>{% else %}-{% endif %}</td>
+                            <td class="action-cell">
+                                <a class="btn btn-yellow-outline btn-sm" href="{% url 'palladium:concentration_edit' r.record_id %}">编辑浓度</a>
+                                <form method="post" action="{% url 'palladium:concentration_slot_delete' r.id %}" class="inline-form"
+                                      data-confirm="确认删除该条浓度数据？">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-red-outline btn-sm">删除</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="19" class="empty-cell">暂无浓度数据记录</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+        </div>
+    </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+        });
+    });
+    var selectAll = document.getElementById('select-all');
+    selectAll.addEventListener('change', function () {
+        document.querySelectorAll('.row-check').forEach(function (cb) { cb.checked = selectAll.checked; });
+    });
+    document.getElementById('btn-bulk-delete').addEventListener('click', function () {
+        var checked = document.querySelectorAll('.row-check:checked');
+        if (!checked.length) { window.alert('请先勾选要删除的记录'); return; }
+        if (window.confirm('确认删除选中的 ' + checked.length + ' 条浓度数据？')) {
+            document.getElementById('bulkForm').submit();
+        }
+    });
+})();
+</script>
+{% endblock %}

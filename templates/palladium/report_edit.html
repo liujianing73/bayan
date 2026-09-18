@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}编辑生产日报 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="edit-header">
+    <h1>编辑生产日报</h1>
+    <a class="btn btn-gray" href="{% url 'palladium:report_list' %}">返回</a>
+</div>
+
+<main class="content form-page">
+    {% include 'messages.html' %}
+
+    <form method="post" id="reportForm" novalidate>
+        {% csrf_token %}
+
+        <!-- 基本信息（只读） -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>基本信息</h2></div>
+            <div class="basic-info-row">
+                <span><strong>产线：</strong>{{ report.line.name }}{% if report.line.line_no %}（{{ report.line.line_no }}）{% endif %}</span>
+                <span><strong>取样日期：</strong>{{ report.sample_date|date:'Y/m/d' }}</span>
+                <span><strong>取样时间：</strong>{{ report.sample_time|date:'H:i' }}</span>
+                <span><strong>车间楼层：</strong>{{ report.line.floor|default:'—' }}</span>
+            </div>
+        </section>
+
+        <!-- 人员信息 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>人员信息</h2></div>
+            <div class="form-card-body">
+                <div class="field-row cols-2">
+                    <div class="form-item">
+                        <label>线长 <span class="optional">（可选）</span></label>
+                        <input type="text" name="line_leader" value="{{ report.line_leader }}" placeholder="待填写" maxlength="50">
+                    </div>
+                    <div class="form-item">
+                        <label>IPQC</label>
+                        <input type="text" name="ipqc" value="{{ report.ipqc }}" placeholder="待填写" maxlength="50">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 生产明细 -->
+        <section class="form-card">
+            <div class="form-card-header">
+                <h2>生产明细 <span class="count-badge cb-green" id="total-badge">总时长: {{ total_hours }}小时</span></h2>
+            </div>
+            <div class="form-card-body">
+                <div id="detail-list">
+                    {% for d in details %}
+                    <div class="detail-edit-card">
+                        <div class="detail-grid">
+                            <div class="form-item">
+                                <label>开始时间</label>
+                                <input type="time" name="d_start" value="{{ d.start_time|date:'H:i' }}">
+                            </div>
+                            <div class="form-item">
+                                <label>结束时间</label>
+                                <input type="time" name="d_end" value="{{ d.end_time|date:'H:i' }}">
+                            </div>
+                            <div class="form-item">
+                                <label>类别</label>
+                                <select name="d_cat">
+                                    {% for c in categories %}
+                                    <option value="{{ c }}" {% if d.category == c %}selected{% endif %}>{{ c }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <button type="button" class="btn btn-red btn-delete-detail">删除</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="edit-config-actions">
+                    <button type="button" class="btn btn-green" id="btn-add-detail">添加明细</button>
+                    <button type="button" class="btn btn-red" id="btn-clear-detail">一键删除所有明细</button>
+                </div>
+
+                <div class="center-actions" style="margin:22px 0 0;">
+                    <button type="submit" class="btn btn-green btn-lg">保存修改</button>
+                    <a href="{% url 'palladium:report_list' %}" class="btn btn-gray btn-lg">取消</a>
+                </div>
+            </div>
+        </section>
+    </form>
+
+    <!-- 明细行模板 -->
+    <template id="detail-template">
+        <div class="detail-edit-card">
+            <div class="detail-grid">
+                <div class="form-item">
+                    <label>开始时间</label>
+                    <input type="time" name="d_start">
+                </div>
+                <div class="form-item">
+                    <label>结束时间</label>
+                    <input type="time" name="d_end">
+                </div>
+                <div class="form-item">
+                    <label>类别</label>
+                    <select name="d_cat">
+                        {% for c in categories %}
+                        <option value="{{ c }}">{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="button" class="btn btn-red btn-delete-detail">删除</button>
+            </div>
+        </div>
+    </template>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('reportForm');
+    var detailList = document.getElementById('detail-list');
+    var detailTemplate = document.getElementById('detail-template');
+    var totalBadge = document.getElementById('total-badge');
+
+    function minutesBetween(s, e) {
+        if (!s || !e) return 0;
+        var sh = +s.split(':')[0], sm = +s.split(':')[1];
+        var eh = +e.split(':')[0], em = +e.split(':')[1];
+        var d = (eh * 60 + em) - (sh * 60 + sm);
+        if (d < 0) d += 1440;
+        return d;
+    }
+
+    function updateTotal() {
+        var total = 0;
+        detailList.querySelectorAll('.detail-edit-card').forEach(function (card) {
+            var s = card.querySelector('[name="d_start"]').value;
+            var e = card.querySelector('[name="d_end"]').value;
+            total += minutesBetween(s, e);
+        });
+        totalBadge.textContent = '总时长: ' + (total / 60).toFixed(1) + '小时';
+    }
+
+    detailList.addEventListener('change', updateTotal);
+    detailList.addEventListener('click', function (e) {
+        var del = e.target.closest('.btn-delete-detail');
+        if (del) { del.closest('.detail-edit-card').remove(); updateTotal(); }
+    });
+
+    document.getElementById('btn-add-detail').addEventListener('click', function () {
+        detailList.appendChild(detailTemplate.content.cloneNode(true));
+    });
+
+    document.getElementById('btn-clear-detail').addEventListener('click', function () {
+        if (detailList.children.length && window.confirm('确认删除所有明细？')) {
+            detailList.innerHTML = '';
+            updateTotal();
+        }
+    });
+
+    // 提交校验
+    form.addEventListener('submit', function (e) {
+        var ok = true;
+        var cards = detailList.querySelectorAll('.detail-edit-card');
+        cards.forEach(function (card, i) {
+            var s = card.querySelector('[name="d_start"]').value;
+            var e = card.querySelector('[name="d_end"]').value;
+            var c = card.querySelector('[name="d_cat"]').value;
+            if (!s || !e) { window.alert('明细' + (i + 1) + '：请选择开始和结束时间'); ok = false; }
+            else if (minutesBetween(s, e) === 0) { window.alert('明细' + (i + 1) + '：开始与结束时间相同'); ok = false; }
+            else if (!c) { window.alert('明细' + (i + 1) + '：请选择类别'); ok = false; }
+        });
+        if (!ok) e.preventDefault();
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}编辑料号 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="edit-header">
+    <h1>编辑料号</h1>
+    <a class="btn btn-gray" href="{% url 'palladium:product_list' %}">返回</a>
+</div>
+
+<main class="content form-page">
+    {% include 'messages.html' %}
+
+    <form method="post" id="editForm" novalidate>
+        {% csrf_token %}
+
+        <!-- 基本信息 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>基本信息</h2></div>
+            <div class="form-card-body">
+                <div class="field-row cols-2">
+                    <div class="form-item">
+                        <label>料号 <span class="req">*</span></label>
+                        <input type="text" name="part_no" id="id_part_no" value="{{ product.part_no }}" maxlength="50">
+                        <div class="error-msg hidden"></div>
+                    </div>
+                    <div class="form-item">
+                        <label>客户名称</label>
+                        <input type="text" name="customer" list="customer-list"
+                               value="{{ product.customer.name|default:'' }}" maxlength="100">
+                        <datalist id="customer-list">
+                            {% for c in customers %}
+                            <option value="{{ c.name }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 产线标准配置 -->
+        <section class="form-card">
+            <div class="form-card-header"><h2>产线标准配置</h2></div>
+            <div class="form-card-body">
+                <div id="config-list">
+                    {% for c in configs %}
+                    <div class="config-card">
+                        <div class="config-grid">
+                            <div class="form-item">
+                                <label>产线</label>
+                                <select name="cfg_line">
+                                    <option value="">请选择产线</option>
+                                    {% for line in lines %}
+                                    <option value="{{ line.id }}" {% if c.line_id == line.id %}selected{% endif %}>{{ line.name }}{% if line.line_no %} ({{ line.line_no }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="error-msg hidden"></div>
+                            </div>
+                            <div class="form-item">
+                                <label>标准钯用量 (g/K)</label>
+                                <input type="text" name="cfg_gold" value="{{ c.std_gold_usage }}">
+                            </div>
+                            <div class="form-item">
+                                <label>标准产能 (Kpcs/min)</label>
+                                <input type="text" name="cfg_capacity" value="{{ c.std_capacity }}">
+                            </div>
+                            <button type="button" class="btn btn-red btn-delete-config">删除</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="edit-config-actions">
+                    <button type="button" class="btn btn-green" id="btn-add-config">添加产线配置</button>
+                    <button type="button" class="btn btn-red" id="btn-clear-config">一键删除所有配置</button>
+                </div>
+            </div>
+        </section>
+
+        <div class="center-actions">
+            <button type="submit" class="btn btn-green btn-lg">保存修改</button>
+            <a href="{% url 'palladium:product_list' %}" class="btn btn-gray btn-lg">取消</a>
+        </div>
+    </form>
+
+    <!-- 新增配置行模板 -->
+    <template id="config-template">
+        <div class="config-card">
+            <div class="config-grid">
+                <div class="form-item">
+                    <label>产线</label>
+                    <select name="cfg_line">
+                        <option value="">请选择产线</option>
+                        {% for line in lines %}
+                        <option value="{{ line.id }}">{{ line.name }}{% if line.line_no %} ({{ line.line_no }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="error-msg hidden"></div>
+                </div>
+                <div class="form-item">
+                    <label>标准钯用量 (g/K)</label>
+                    <input type="text" name="cfg_gold">
+                </div>
+                <div class="form-item">
+                    <label>标准产能 (Kpcs/min)</label>
+                    <input type="text" name="cfg_capacity">
+                </div>
+                <button type="button" class="btn btn-red btn-delete-config">删除</button>
+            </div>
+        </div>
+    </template>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('editForm');
+    var configList = document.getElementById('config-list');
+    var configTemplate = document.getElementById('config-template');
+
+    document.getElementById('btn-add-config').addEventListener('click', function () {
+        configList.appendChild(configTemplate.content.cloneNode(true));
+    });
+
+    document.getElementById('btn-clear-config').addEventListener('click', function () {
+        if (configList.children.length && window.confirm('确认删除所有产线配置？')) {
+            configList.innerHTML = '';
+        }
+    });
+
+    configList.addEventListener('click', function (e) {
+        var del = e.target.closest('.btn-delete-config');
+        if (del) del.closest('.config-card').remove();
+    });
+
+    /* 错误提示 */
+    function setError(el, msg) {
+        var wrap = el.closest('.form-item');
+        var err = wrap.querySelector('.error-msg');
+        if (msg) {
+            el.classList.add('is-invalid');
+            err.innerHTML = '<div>' + msg + '</div><div>此字段为必填项</div>';
+            err.classList.remove('hidden');
+        } else {
+            el.classList.remove('is-invalid');
+            err.textContent = '';
+            err.classList.add('hidden');
+        }
+    }
+
+    form.addEventListener('change', function (e) {
+        if (e.target.classList.contains('is-invalid')) setError(e.target, null);
+    });
+
+    form.addEventListener('submit', function (e) {
+        var ok = true;
+        var partNo = document.getElementById('id_part_no');
+        if (!partNo.value.trim()) {
+            setError(partNo, '请输入料号');
+            ok = false;
+        } else {
+            setError(partNo, null);
+        }
+        configList.querySelectorAll('.config-card').forEach(function (card) {
+            var sel = card.querySelector('select[name="cfg_line"]');
+            if (!sel.value) {
+                setError(sel, '请选择产线');
+                ok = false;
+            } else {
+                setError(sel, null);
+            }
+        });
+        if (!ok) {
+            e.preventDefault();
+            var firstInvalid = form.querySelector('.is-invalid');
+            if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}料号列表 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="page-banner">
+    <h1>产品列表</h1>
+</div>
+
+<main class="content form-page" style="max-width:100%;">
+    {% include 'messages.html' %}
+
+    <!-- 颜色说明 -->
+    <div class="legend">
+        <span>颜色说明：</span>
+        <span><span class="swatch swatch-green"></span>有标准参数历史记录</span>
+        <span><span class="swatch swatch-yellow"></span>未配置产线参数</span>
+    </div>
+
+    <!-- 筛选工具栏 -->
+    <form method="get" class="list-toolbar" id="filterForm">
+        <div class="tool-item">
+            <label>料号</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="输入料号关键字">
+        </div>
+        <div class="tool-item">
+            <label>客户名称</label>
+            <select name="customer">
+                <option value="">全部客户</option>
+                {% for c in customers %}
+                <option value="{{ c.id }}" {% if customer_id == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="tool-item">
+            <label>产线</label>
+            <select name="line">
+                <option value="">全部产线</option>
+                {% for line in lines %}
+                <option value="{{ line.id }}" {% if line_id == line.id|stringformat:"s" %}selected{% endif %}>{{ line.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="tool-item">
+            <label>配置状态</label>
+            <select name="status">
+                <option value="">全部状态</option>
+                <option value="configured" {% if status == 'configured' %}selected{% endif %}>已配置产线参数</option>
+                <option value="unconfigured" {% if status == 'unconfigured' %}selected{% endif %}>未配置产线参数</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-outline-green">筛选</button>
+        <a class="btn" href="{{ clear_url }}">清除</a>
+        <a class="btn btn-green" href="{{ export_url }}">导出Excel</a>
+        <div class="tool-item tool-right">
+            <label>每页条数</label>
+            <select name="page_size" onchange="document.getElementById('filterForm').submit()">
+                {% for size in page_sizes %}
+                <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    <!-- 列表 -->
+    <div class="table-wrap">
+        <table class="list-table">
+            <thead>
+            <tr>
+                {% with su=sort_urls.part_no %}
+                <th><a href="{{ su }}" class="{% if sort == 'part_no' %}sorted{% endif %}">料号 <span class="arrow">{% if sort == 'part_no' %}{{ direction|yesno:"↓,↑" }}{% else %}↑{% endif %}</span></a></th>
+                {% endwith %}
+                <th><a href="{{ sort_urls.customer }}" class="{% if sort == 'customer' %}sorted{% endif %}">客户名称 <span class="arrow">{% if sort == 'customer' %}{{ direction|yesno:"↓,↑" }}{% else %}↑{% endif %}</span></a></th>
+                <th><a href="{{ sort_urls.line }}" class="{% if sort == 'line' %}sorted{% endif %}">产线 <span class="arrow">{% if sort == 'line' %}{{ direction|yesno:"↓,↑" }}{% else %}↑{% endif %}</span></a></th>
+                <th><a href="{{ sort_urls.gold }}" class="{% if sort == 'gold' %}sorted{% endif %}">标准钯用量（g/K） <span class="arrow">{% if sort == 'gold' %}{{ direction|yesno:"↓,↑" }}{% else %}↑{% endif %}</span></a></th>
+                <th><a href="{{ sort_urls.capacity }}" class="{% if sort == 'capacity' %}sorted{% endif %}">标准产能（Kpcs/min） <span class="arrow">{% if sort == 'capacity' %}{{ direction|yesno:"↓,↑" }}{% else %}↑{% endif %}</span></a></th>
+                <th>输入人员</th>
+                <th><a href="{{ sort_urls.created_at }}" class="{% if sort == 'created_at' %}sorted{% endif %}">创建时间 <span class="arrow">{% if sort == 'created_at' %}{{ direction|yesno:"↓,↑" }}{% else %}↑{% endif %}</span></a></th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+                {% for r in page_obj %}
+                <tr class="{% if r.unconfigured %}row-unconfigured{% elif r.has_history %}row-history{% endif %}">
+                    <td>
+                        {{ r.part_no }}
+                        {% if r.unconfigured %}<span class="badge-unset">未配置</span>{% endif %}
+                    </td>
+                    <td>{{ r.customer_name }}</td>
+                    {% if r.unconfigured %}
+                    <td colspan="3" class="warning-cell">⚠ 需要配置产线参数</td>
+                    {% else %}
+                    <td>{{ r.line_name }}</td>
+                    <td>{{ r.gold }}</td>
+                    <td>{{ r.capacity }}</td>
+                    {% endif %}
+                    <td>{% if r.creator %}<span class="chip chip-{{ r.chip }}">{{ r.creator }}</span>{% else %}—{% endif %}</td>
+                    <td>{{ r.created_at|date:'Y-m-d H:i' }}</td>
+                    <td class="action-cell">
+                        <a class="btn btn-yellow-outline btn-sm" href="{% url 'palladium:product_edit' r.product_id %}">编辑</a>
+                        <form method="post" action="{% url 'palladium:product_delete' r.product_id %}" class="inline-form"
+                              data-confirm="{% if r.unconfigured %}确认删除料号 {{ r.part_no }}？{% else %}确认删除料号 {{ r.part_no }} 的产线 {{ r.line_name }} 配置？{% endif %}">
+                            {% csrf_token %}
+                            {% if r.config_id %}<input type="hidden" name="cfg" value="{{ r.config_id }}">{% endif %}
+                            <button type="submit" class="btn btn-red-outline btn-sm">删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="empty-cell">暂无数据</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <span>共 {{ page_obj.paginator.count }} 条 / 第 {{ page_obj.number }} 页（共 {{ page_obj.paginator.num_pages }} 页）</span>
+            <span class="page-links">
+                {% if prev_url %}<a class="btn btn-sm" href="{{ prev_url }}">上一页</a>{% endif %}
+                {% if next_url %}<a class="btn btn-sm" href="{{ next_url }}">下一页</a>{% endif %}
+            </span>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // 删除确认
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+        });
+    });
+})();
+</script>
+{% endblock %}
