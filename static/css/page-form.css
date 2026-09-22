@@ -857,13 +857,21 @@ tr.row-unconfigured .warning-cell {
 
 .detail-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1.2fr auto;
-    gap: 20px;
+    grid-template-columns: 1fr 1fr 1.1fr 1.9fr 1fr 96px;
+    gap: 18px;
     align-items: start;
 }
 
 .detail-grid .btn-delete-detail {
+    width: 96px;
+    height: 42px;
     margin-top: 30px;
+    justify-self: start;
+}
+
+/* 类别联动隐藏字段：保持占位以对齐各行 */
+.field-hidden {
+    visibility: hidden;
 }
 
 /* ===================== 浓度数据页 ===================== */
@@ -883,6 +891,22 @@ tr.row-unconfigured .warning-cell {
     display: block;
     font-size: 11px;
     font-weight: 400;
+}
+
+.th-mark {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 400;
+    color: #f5b800;
+    margin-left: 4px;
+    vertical-align: 1px;
+}
+
+.cell-type {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 11px;
+    color: #9aa0a6;
 }
 
 .conc-table td,
@@ -1023,6 +1047,470 @@ tr.row-unconfigured .warning-cell {
 
 .diag-grid .mini-table th {
     border-bottom: 2px solid #444;
+}
+
+/* ===================== 启用/关闭产线页 ===================== */
+.toggle-page {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.toggle-desc {
+    color: #5f6368;
+    font-size: 14px;
+    margin-bottom: 18px;
+}
+
+.toggle-table td {
+    vertical-align: middle;
+}
+
+.toggle-table .switch {
+    vertical-align: middle;
+    margin-right: 10px;
+}
+
+.toggle-label {
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.toggle-label.on {
+    color: #333;
+}
+
+.toggle-label.off {
+    color: #9aa0a6;
+}
+
+.switch-blue input:checked + .slider {
+    background: #1a73e8;
+}
+
+/* ===================== 填写生产日报页 ===================== */
+.create-page {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    margin-top: 20px;
+    padding-top: 24px;
+}
+
+/* 基础字段分组面板 */
+.create-page .base-panel {
+    background: #f8f9fb;
+    border: 1px solid #eef0f4;
+    border-radius: 12px;
+    padding: 20px 20px 6px;
+    margin-bottom: 26px;
+}
+
+.create-page .form-item label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #4a4f55;
+    margin-bottom: 7px;
+}
+
+.create-page .form-item input[type="text"],
+.create-page .form-item input[type="date"],
+.create-page .form-item select {
+    height: 44px;
+    border-radius: 8px;
+    border: 1px solid #dcdfe4;
+    font-size: 14px;
+    color: #333;
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.create-page .form-item input[type="text"]:hover,
+.create-page .form-item input[type="date"]:hover,
+.create-page .form-item select:hover {
+    border-color: #b9c0c9;
+}
+
+.create-page .form-item input[type="text"]:focus,
+.create-page .form-item input[type="date"]:focus,
+.create-page .form-item select:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.13);
+}
+
+/* 分节标题：蓝色竖条 */
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin: 0 0 12px;
+}
+
+.section-title::before {
+    content: "";
+    width: 4px;
+    height: 16px;
+    background: #1a73e8;
+    border-radius: 2px;
+}
+
+/* 明细表容器 */
+.detail-wrap {
+    border: 1px solid #e8eaee;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.detail-table th {
+    padding: 12px 14px;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+}
+
+.detail-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f3f5;
+    transition: background 0.15s;
+}
+
+.detail-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.detail-table tbody tr:hover {
+    background: #f6f9ff;
+}
+
+.detail-table input[type="time"],
+.detail-table input[type="text"],
+.detail-table select {
+    width: 100%;
+    height: 40px;
+    padding: 0 10px;
+    border: 1px solid #dcdfe4;
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
+    background: #fff;
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.detail-table input:hover,
+.detail-table select:hover {
+    border-color: #b9c0c9;
+}
+
+.detail-table input:focus,
+.detail-table select:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.13);
+}
+
+/* 料号搜索框：放大镜图标 */
+.part-input {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239aa0a6' stroke-width='2.4' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><line x1='21' y1='21' x2='16.5' y2='16.5'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+}
+
+/* 客户名称展示 */
+.cust-cell {
+    display: inline-block;
+    background: #eef4fe;
+    color: #1a73e8;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 13px;
+    min-height: 0;
+}
+
+.cust-cell:empty {
+    display: none;
+}
+
+/* 数量右对齐 */
+.qty-input {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 添加时间段按钮 */
+.btn-dark {
+    background: #5f6368;
+    border: 1px solid #5f6368;
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 24px;
+    transition: all 0.15s;
+}
+
+.btn-dark:hover {
+    background: #3c4043;
+    border-color: #3c4043;
+    box-shadow: 0 3px 10px rgba(60, 64, 67, 0.3);
+    transform: translateY(-1px);
+}
+
+/* 时长徽章 */
+.duration-badges {
+    display: flex;
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.duration-badges .count-badge,
+.count-badge.cb-orange,
+.count-badge.cb-yellow {
+    border-radius: 999px;
+    padding: 5px 16px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+
+.cb-orange { background: #f5a623; }
+.cb-yellow { background: #f5b800; }
+
+.cb-green-badge {
+    background: #1e8e3e !important;
+}
+
+/* 操作按钮区 */
+.create-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 14px;
+    margin-top: 20px;
+}
+
+.create-actions .btn-red-outline:hover {
+    background: #fce8e6;
+    box-shadow: 0 2px 8px rgba(229, 57, 53, 0.18);
+}
+
+.create-actions .btn-green {
+    box-shadow: 0 2px 10px rgba(52, 168, 83, 0.35);
+}
+
+.create-actions .btn-green:hover {
+    box-shadow: 0 4px 14px rgba(52, 168, 83, 0.45);
+}
+
+/* ===================== 编辑生产日报页美化 ===================== */
+.report-edit-page .form-item label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #4a4f55;
+    margin-bottom: 7px;
+}
+
+.report-edit-page .form-item input[type="text"],
+.report-edit-page .form-item input[type="time"],
+.report-edit-page .form-item select {
+    height: 44px;
+    border-radius: 8px;
+    border: 1px solid #dcdfe4;
+    font-size: 14px;
+    color: #333;
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.report-edit-page .form-item input[type="text"]:hover,
+.report-edit-page .form-item input[type="time"]:hover,
+.report-edit-page .form-item select:hover {
+    border-color: #b9c0c9;
+}
+
+.report-edit-page .form-item input[type="text"]:focus,
+.report-edit-page .form-item input[type="time"]:focus,
+.report-edit-page .form-item select:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.13);
+}
+
+.report-edit-page .form-item input[type="text"].is-invalid,
+.report-edit-page .form-item select.is-invalid,
+.report-edit-page .form-item input[type="time"].is-invalid {
+    border-color: #e53935 !important;
+    box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.12) !important;
+}
+
+/* 明细行卡片 */
+.report-edit-page .detail-edit-card {
+    background: #fff;
+    border: 1px solid #e8eaee;
+    border-radius: 10px;
+    padding: 16px 20px 4px;
+    margin-bottom: 14px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.report-edit-page .detail-edit-card:hover {
+    border-color: #d3dce8;
+    box-shadow: 0 2px 10px rgba(26, 115, 232, 0.08);
+}
+
+.report-edit-page .detail-grid input[type="time"],
+.report-edit-page .detail-grid input[type="text"],
+.report-edit-page .detail-grid select {
+    height: 42px;
+    border-radius: 8px;
+    border: 1px solid #dcdfe4;
+    font-size: 14px;
+    color: #333;
+    padding: 0 10px;
+    outline: none;
+    background: #fff;
+    width: 100%;
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.report-edit-page .detail-grid input[type="time"]:hover,
+.report-edit-page .detail-grid input[type="text"]:hover,
+.report-edit-page .detail-grid select:hover {
+    border-color: #b9c0c9;
+}
+
+.report-edit-page .detail-grid input[type="time"]:focus,
+.report-edit-page .detail-grid input[type="text"]:focus,
+.report-edit-page .detail-grid select:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.13);
+}
+
+/* 胶囊徽章 */
+.report-edit-page .count-badge {
+    border-radius: 999px;
+    padding: 5px 16px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    vertical-align: 2px;
+    margin-left: 10px;
+}
+
+/* 操作按钮 */
+.report-edit-page .edit-config-actions .btn {
+    border-radius: 8px;
+    padding: 10px 24px;
+}
+
+.report-edit-page .edit-config-actions .btn-green {
+    transition: all 0.15s;
+}
+
+.report-edit-page .edit-config-actions .btn-green:hover {
+    box-shadow: 0 3px 10px rgba(52, 168, 83, 0.35);
+    transform: translateY(-1px);
+}
+
+.report-edit-page .edit-config-actions .btn-red:hover {
+    box-shadow: 0 3px 10px rgba(229, 57, 53, 0.3);
+    transform: translateY(-1px);
+}
+
+.report-edit-page .center-actions .btn-green {
+    box-shadow: 0 2px 10px rgba(52, 168, 83, 0.35);
+}
+
+.report-edit-page .center-actions .btn-green:hover {
+    box-shadow: 0 4px 14px rgba(52, 168, 83, 0.45);
+}
+
+.detail-table input.is-invalid {
+    border-color: #e53935 !important;
+    box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.12) !important;
+}
+
+.detail-table .error-msg {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.detail-table td .error-msg:empty {
+    display: none;
+}
+
+/* ===================== 首页批量模式 ===================== */
+.batch-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.batch-controls.hidden {
+    display: none;
+}
+
+.btn-cyan-outline {
+    background: #fff;
+    border: 1px solid #00bcd4;
+    color: #0097a7;
+    border-radius: 8px;
+}
+
+.btn-cyan-outline:hover {
+    background: #e0f7fa;
+}
+
+.btn-orange {
+    background: #f5b800;
+    border: 1px solid #f5b800;
+    color: #fff;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.btn-orange:hover {
+    background: #e0a800;
+}
+
+/* 批量模式下：班次块虚线边框 + 复选框 */
+.shift-tile {
+    position: relative;
+}
+
+.batch-active .shift-tile {
+    border: 1.5px dashed #b0b6bd;
+}
+
+.batch-check {
+    appearance: none;
+    -webkit-appearance: none;
+    display: none;
+    position: absolute;
+    top: 7px;
+    left: 8px;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    border: 1.5px solid #9aa0a6;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+}
+
+.batch-active .batch-check {
+    display: inline-block;
+}
+
+.batch-check:checked {
+    border-color: #1a73e8;
+    background: #1a73e8;
+}
+
+.batch-check:checked::after {
+    content: "✓";
+    position: absolute;
+    inset: 0;
+    text-align: center;
+    line-height: 14px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
 }
 
 /* 提示与行内添加行 */

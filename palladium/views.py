@@ -3,12 +3,15 @@ import datetime
 import json
 
 from django.contrib import messages
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from urllib.parse import urlencode
 
 from .models import (
     ChemicalSystem,
@@ -27,9 +30,13 @@ from .models import (
     StandardParamConfig,
     StandardParamHistory,
 )
-
-DETAIL_CATEGORIES = ['无效工时', '有效工时', '待料', '停机', '换线', '其他']
-OPEN_STATUS = ['无', '开缸', '补缸']
+DETAIL_CATEGORIES = ['生产', '换线', '重工', '试做', '判定', '阳极添加', '异常<90分钟', '无效工时']
+# 类别联动：需要料号的类别 / 需要料号+生产数量的类别
+CATEGORIES_NEED_PART = {'生产', '换线', '重工', '试做', '判定', '阳极添加', '异常<90分钟'}
+CATEGORIES_NEED_QTY = {'生产', '重工', '试做'}
+SAMPLE_TIMES = ['08:00', '20:00']
+MIN_MINUTES = 720  # 每日总时长须满12小时
+OPEN_STATUS = ['无', '开缸', '抽出', '回槽']
 TEST_STATUS = ['未检测', '检测']
 GRASS_TYPES = ['罩头1', '罩头2', '罩头3']
 CONC_SLOT_TYPES = ['镀钯', '镀镍']
@@ -39,10 +46,67 @@ FLOORS = ['车间1楼', '车间2楼', '车间3楼']
 SLOT_TYPES = ['选金', '点镀', '镀钯']
 
 
+def login_view(request):
+    """登录页"""
+    if request.user.is_authenticated:
+        return redirect('palladium:dashboard')
+    error = ''
+    username = ''
+    if request.method == 'POST':
+        username = (request.POST.get('username') or '').strip()
+        password = request.POST.get('password') or ''
+        if not username or not password:
+            error = '请输入用户名和密码'
+        else:
+            user = authenticate(request, username=username, password=password)
+            if user is not None:
+                auth_login(request, user)
+                return redirect('palladium:dashboard')
+            error = '用户名或密码错误'
+    return render(request, 'palladium/login.html', {
+        'error': error, 'username': username,
+    })
+
+
+def logout_view(request):
+    """退出登录"""
+    auth_logout(request)
+    return redirect('palladium:login')
+
+
+def register_view(request):
+    """注册页"""
+    error = ''
+    username = ''
+    if request.method == 'POST':
+        username = (request.POST.get('username') or '').strip()
+        password = request.POST.get('password') or ''
+        password2 = request.POST.get('password2') or ''
+        if not username:
+            error = '请输入用户名'
+        elif User.objects.filter(username=username).exists():
+            error = f'用户名「{username}」已存在'
+        elif len(password) < 6:
+            error = '密码至少 6 位'
+        elif password != password2:
+            error = '两次输入的密码不一致'
+        if not error:
+            user = User.objects.create_user(username=username, password=password)
+            auth_login(request, user)
+            messages.success(request, f'欢迎加入，{user.username}！')
+            return redirect('palladium:dashboard')
+    return render(request, 'palladium/register.html', {
+        'error': error, 'username': username,
+    })
+
+
 def dashboard(request):
-    """系统首页：最近操作记录 / 产线录入状态 / 浓度输入区块 + 快捷入口"""
+    """系统首页：最近操作记录 / 产线录入状态 / 钯盐浓度输入 + 快捷入口"""
     date = _parse_date(request.GET.get('date'), timezone.localdate())
     search = request.GET.get('q', '').strip()
+    # 浓度输入区块独立的筛选
+    c_date = _parse_date(request.GET.get('c_date'), timezone.localdate())
+    c_search = request.GET.get('c_q', '').strip()
 
     lines = ProductionLine.objects.filter(is_active=True)
     if search:
@@ -51,23 +115,77 @@ def dashboard(request):
     entries = ShiftEntry.objects.filter(date=date)
     entry_map = {(e.line_id, e.shift): e for e in entries}
 
+    # 日报映射：点击首页卡片直达编辑页（已录入）或填写页（未录入）
+    report_map = {
+        (r.line_id, ShiftEntry.SHIFT_DAY if r.sample_time.hour < 12 else ShiftEntry.SHIFT_NIGHT): r.id
+        for r in DailyReport.objects.filter(sample_date=date)
+    }
+
     line_cards = [
         {
             'line': line,
             'day': entry_map.get((line.id, ShiftEntry.SHIFT_DAY)),
             'night': entry_map.get((line.id, ShiftEntry.SHIFT_NIGHT)),
+            'day_report_id': report_map.get((line.id, ShiftEntry.SHIFT_DAY)),
+            'night_report_id': report_map.get((line.id, ShiftEntry.SHIFT_NIGHT)),
         }
         for line in lines
     ]
+    for card in line_cards:
+        if card['day_report_id']:
+            card['day_url'] = reverse('palladium:report_edit', args=[card['day_report_id']])
+        else:
+            card['day_url'] = (reverse('palladium:report_create')
+                               + f"?line={card['line'].id}&date={date:%Y-%m-%d}&time=08:00")
+        if card['night_report_id']:
+            card['night_url'] = reverse('palladium:report_edit', args=[card['night_report_id']])
+        else:
+            card['night_url'] = (reverse('palladium:report_create')
+                                 + f"?line={card['line'].id}&date={date:%Y-%m-%d}&time=20:00")
+
+    # 浓度输入区块：按 ConcentrationRecord 判断各产线早/晚班录入状态
+    c_lines = ProductionLine.objects.filter(is_active=True)
+    if c_search:
+        c_lines = c_lines.filter(name__icontains=c_search)
+    conc_records = ConcentrationRecord.objects.filter(sample_date=c_date)
+    conc_map = {
+        (r.line_id, ShiftEntry.SHIFT_DAY if r.sample_time.hour < 12 else ShiftEntry.SHIFT_NIGHT): r
+        for r in conc_records
+    }
+    conc_cards = [
+        {
+            'line': line,
+            'day': conc_map.get((line.id, ShiftEntry.SHIFT_DAY)),
+            'night': conc_map.get((line.id, ShiftEntry.SHIFT_NIGHT)),
+        }
+        for line in c_lines
+    ]
+    for card in conc_cards:
+        base = (reverse('palladium:concentration_input')
+                + f"?line={card['line'].id}&date={c_date:%Y-%m-%d}&time=")
+        # 已录入 → 编辑浓度数据页；未录入 → 录入页预选
+        card['day_url'] = (reverse('palladium:concentration_edit', args=[card['day'].id])
+                           if card['day'] else base + '08:00')
+        card['night_url'] = (reverse('palladium:concentration_edit', args=[card['night'].id])
+                             if card['night'] else base + '20:00')
 
     since = timezone.now() - datetime.timedelta(hours=24)
     logs = OperationLog.objects.filter(created_at__gte=since)[:50]
+
+    today = timezone.localdate()
+    batch_sections = [x for x in (request.GET.get('batch') or '').split(',') if x in ('1', '2')]
+    c_date_label = '今日' if c_date == today else f'{c_date.month}月{c_date.day}日'
 
     context = {
         'page_title': '首页',
         'date': date,
         'search': search,
         'line_cards': line_cards,
+        'c_date': c_date,
+        'c_date_label': c_date_label,
+        'c_search': c_search,
+        'conc_cards': conc_cards,
+        'batch_sections': batch_sections,
         'logs': logs,
     }
     return render(request, 'palladium/dashboard.html', context)
@@ -808,6 +926,8 @@ def report_edit(request, pk):
             s = _parse_time(d_starts[i])
             e = _parse_time(d_ends[i])
             cat = d_cats[i].strip() if i < len(d_cats) else ''
+            part = d_parts[i].strip() if i < len(d_parts) else ''
+            qty = d_qty[i].strip() if i < len(d_qty) else ''
             if not s:
                 errors.append(f'明细{i + 1}：请选择开始时间')
             if not e:
@@ -816,9 +936,16 @@ def report_edit(request, pk):
                 errors.append(f'明细{i + 1}：请选择类别')
             if s and e and _duration_minutes(s, e) == 0:
                 errors.append(f'明细{i + 1}：开始与结束时间相同')
+            # 类别联动：生产/重工/试做 需料号+生产数量；换线/判定/阳极添加/异常<90分钟 需料号
+            if cat in CATEGORIES_NEED_PART and not part:
+                errors.append(f'明细{i + 1}：类别「{cat}」需要输入料号')
+            if cat in CATEGORIES_NEED_QTY and not qty:
+                errors.append(f'明细{i + 1}：类别「{cat}」需要输入生产数量')
+            if cat not in CATEGORIES_NEED_PART:
+                part = ''
+                qty = ''
             details.append({'start_time': s, 'end_time': e, 'category': cat,
-                            'part_no': d_parts[i].strip() if i < len(d_parts) else '',
-                            'quantity': d_qty[i].strip() if i < len(d_qty) else ''})
+                            'part_no': part, 'quantity': qty})
 
         if errors:
             for msg in errors:
@@ -844,6 +971,7 @@ def report_edit(request, pk):
         'report': report,
         'details': report.details.all(),
         'categories': DETAIL_CATEGORIES,
+        'products': Product.objects.select_related('customer'),
         'total_hours': f'{total_minutes / 60:.1f}',
     }
     return render(request, 'palladium/report_edit.html', context)
@@ -922,6 +1050,16 @@ def concentration_list(request):
             'creator': creator, 'chip': chip,
         })
 
+    def list_url(overrides):
+        params = request.GET.copy()
+        for k, v in overrides.items():
+            if v is None:
+                params.pop(k, None)
+            else:
+                params[k] = v
+        qs = params.urlencode()
+        return request.path + ('?' + qs if qs else '')
+
     context = {
         'page_title': '浓度数据查看',
         'lines': ProductionLine.objects.filter(is_active=True),
@@ -931,8 +1069,70 @@ def concentration_list(request):
         'start': request.GET.get('start') or '',
         'end': request.GET.get('end') or '',
         'clear_url': request.path,
+        'export_url': list_url({'export': '1'}),
     }
+
+    if request.GET.get('export'):
+        return _export_concentration_csv(request, line_id, start, end)
+
     return render(request, 'palladium/concentration_list.html', context)
+
+
+def _effective_concentration(line, day, sample_time):
+    """取某日浓度的有效记录；当天无录入则沿用之前最近一天的数据（数据来源标注沿用）"""
+    rec = ConcentrationRecord.objects.filter(
+        line=line, sample_date=day, sample_time=sample_time).first()
+    if rec:
+        return rec, '当日录入'
+    rec = ConcentrationRecord.objects.filter(
+        line=line, sample_time=sample_time, sample_date__lt=day).order_by('-sample_date').first()
+    if rec:
+        return rec, f"沿用{rec.sample_date:%m-%d}"
+    return None, None
+
+
+def _export_concentration_csv(request, line_id, start, end):
+    """导出浓度数据：无当天录入的沿用前一天数据（来源列体现）"""
+    today = timezone.localdate()
+    if start and end and start <= end:
+        span = (end - start).days
+        dates = [start + datetime.timedelta(days=i) for i in range(span + 1)]
+    elif start:
+        dates = [start + datetime.timedelta(days=i) for i in range((today - start).days + 1)]
+    elif end:
+        dates = [end - datetime.timedelta(days=i) for i in range(30, -1, -1)]
+    else:
+        dates = [today - datetime.timedelta(days=i) for i in range(6, -1, -1)]
+    dates = dates[-62:]  # 防止范围过大
+
+    lines = ProductionLine.objects.filter(is_active=True)
+    if line_id.isdigit():
+        lines = lines.filter(id=int(line_id))
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = (
+        f"attachment; filename=concentrations_{today:%Y%m%d}.csv")
+    response.write('﻿')
+    writer = csv.writer(response)
+    writer.writerow(['取样日期', '产线', '班次', '槽位编号', '槽位类型', '槽位名称',
+                     '化学体系', '浓度(g/L)', '液位(cm)', '升数(L)', '钯盐添加量(g)',
+                     '槽位状态', '浓度检测状态', '数据来源'])
+    shift_names = {'day': '早班', 'night': '晚班'}
+    for line in lines:
+        for d in dates:
+            for shift, stime in (('day', datetime.time(8, 0)), ('night', datetime.time(20, 0))):
+                rec, source = _effective_concentration(line, d, stime)
+                if not rec:
+                    continue
+                for s in rec.slot_rows.all():
+                    writer.writerow([
+                        f"{d:%Y-%m-%d}", line.name, shift_names[shift],
+                        s.slot_no, s.slot_type, s.slot_name, s.chemical,
+                        _fmt_num(s.concentration, 3), _fmt_num(s.liquid_level, 2),
+                        _fmt_num(s.liters, 2), s.gold_salt or '0',
+                        s.open_status or '无', s.test_status or '未检测', source,
+                    ])
+    return response
 
 
 def concentration_edit(request, pk):
@@ -1031,6 +1231,417 @@ def concentration_slots_clear(request, pk):
     )
     messages.success(request, f'已删除 {n} 条槽位浓度数据')
     return redirect('palladium:concentration_edit', pk=record.id)
+
+
+def report_create(request):
+    """填写生产日报：录入时间段明细，总时长须满12小时"""
+    if request.method == 'POST':
+        line_id = (request.POST.get('line') or '').strip()
+        sample_time = (request.POST.get('sample_time') or '').strip()
+        sample_date = _parse_date(request.POST.get('sample_date'), None)
+        leader = (request.POST.get('line_leader') or '').strip()
+        ipqc = (request.POST.get('ipqc') or '').strip()
+
+        d_starts = request.POST.getlist('d_start')
+        d_ends = request.POST.getlist('d_end')
+        d_cats = request.POST.getlist('d_cat')
+        d_parts = request.POST.getlist('d_part')
+        d_qty = request.POST.getlist('d_qty')
+
+        errors = []
+        line = ProductionLine.objects.filter(id=line_id, is_active=True).first()
+        if not line:
+            errors.append('请选择产线')
+        time_val = _parse_time(sample_time)
+        if not time_val:
+            errors.append('请选择时间')
+        if not sample_date:
+            errors.append('请选择日期')
+        if line and time_val and sample_date:
+            if DailyReport.objects.filter(
+                    line=line, sample_date=sample_date, sample_time=time_val).exists():
+                errors.append(f'产线「{line.name}」在 {sample_date} {sample_time} 的日报已存在，请勿重复填写')
+
+        details = []
+        total = 0
+        n = len(d_starts)
+        for i in range(n):
+            s = _parse_time(d_starts[i])
+            e = _parse_time(d_ends[i])
+            cat = d_cats[i].strip() if i < len(d_cats) else ''
+            part = d_parts[i].strip() if i < len(d_parts) else ''
+            qty = d_qty[i].strip() if i < len(d_qty) else ''
+            if not s:
+                errors.append(f'明细{i + 1}：请选择开始时间')
+            if not e:
+                errors.append(f'明细{i + 1}：请选择结束时间')
+            if not cat:
+                errors.append(f'明细{i + 1}：请选择类别')
+            if s and e:
+                m = _duration_minutes(s, e)
+                if m == 0:
+                    errors.append(f'明细{i + 1}：开始与结束时间相同')
+                total += m
+            # 类别联动：生产/重工/试做 需料号+生产数量；换线/判定/阳极添加/异常<90分钟 需料号
+            if cat in CATEGORIES_NEED_PART and not part:
+                errors.append(f'明细{i + 1}：类别「{cat}」需要输入料号')
+            if cat in CATEGORIES_NEED_QTY and not qty:
+                errors.append(f'明细{i + 1}：类别「{cat}」需要输入生产数量')
+            if cat not in CATEGORIES_NEED_PART:
+                part = ''
+                qty = ''
+            details.append({'start_time': s, 'end_time': e, 'category': cat,
+                            'part_no': part, 'quantity': qty})
+
+        if not errors and total < MIN_MINUTES:
+            errors.append(f'时间未满十二小时（当前总时长 {total / 60:.1f} 小时），无法保存')
+
+        if errors:
+            for msg in errors:
+                messages.error(request, msg)
+            return redirect('palladium:report_create')
+
+        user = request.user if request.user.is_authenticated else None
+        report = DailyReport.objects.create(
+            line=line, sample_date=sample_date, sample_time=time_val,
+            line_leader=leader, ipqc=ipqc, created_by=user)
+        for d in details:
+            ReportDetail.objects.create(report=report, **d)
+        # 同步首页班次录入状态（08:00 为早班，其余为晚班）
+        shift = ShiftEntry.SHIFT_DAY if time_val.hour < 12 else ShiftEntry.SHIFT_NIGHT
+        ShiftEntry.objects.update_or_create(
+            line=line, date=sample_date, shift=shift,
+            defaults={'entered_by': user, 'entered_at': timezone.now()})
+        OperationLog.objects.create(
+            user=user,
+            action=f'填写生产日报：{line.name} {sample_date} {sample_time}'
+                   f'（{len(details)}条明细，总时长 {total / 60:.1f} 小时）',
+        )
+        messages.success(request, f'产线「{line.name}」的生产日报已提交'
+                                  f'（总时长 {total / 60:.1f} 小时）')
+        return redirect('palladium:report_list')
+
+    init_line = request.GET.get('line') or ''
+    init_date = _parse_date(request.GET.get('date'), timezone.localdate())
+    init_time = request.GET.get('time') or '08:00'
+    context = {
+        'page_title': '填写生产日报',
+        'lines': ProductionLine.objects.filter(is_active=True),
+        'sample_times': SAMPLE_TIMES,
+        'categories': DETAIL_CATEGORIES,
+        'products': Product.objects.select_related('customer'),
+        'today': timezone.localdate(),
+        'init_line': init_line,
+        'init_date': init_date,
+        'init_time': init_time if init_time in SAMPLE_TIMES else '08:00',
+    }
+    return render(request, 'palladium/report_create.html', context)
+
+
+def concentration_input(request):
+    """钯盐浓度输入：选择产线/日期/时间后录入各槽位浓度"""
+    line_id = request.GET.get('line') or ''
+    sample_date = _parse_date(request.GET.get('date'), timezone.localdate())
+    time_str = request.GET.get('time') or '08:00'
+    time_val = _parse_time(time_str) or datetime.time(8, 0)
+    selected = False
+    slot_rows = []
+    leader = ipqc = ''
+    record = None
+
+    lines = ProductionLine.objects.filter(is_active=True).annotate(
+        n_slots=Count('slots')).filter(n_slots__gt=0)
+    if line_id.isdigit():
+        selected_line = lines.filter(id=int(line_id)).first()
+        if selected_line:
+            selected = True
+            record = ConcentrationRecord.objects.filter(
+                line=selected_line, sample_date=sample_date, sample_time=time_val).first()
+            report = DailyReport.objects.filter(
+                line=selected_line, sample_date=sample_date, sample_time=time_val).first()
+            if report:
+                leader = report.line_leader
+                ipqc = report.ipqc
+            # 载入槽位行：已有记录用其数据，否则用产线槽位默认值
+            if record:
+                for s in record.slot_rows.all():
+                    slot_rows.append({
+                        'slot': s, 'slot_no': s.slot_no, 'slot_type': s.slot_type,
+                        'name': s.slot_name,
+                        'open': s.open_status or '无', 'test': s.test_status or '未检测',
+                        'conc': s.concentration, 'grass': s.grass_type,
+                        'liquid': s.liquid_level, 'liters': s.liters,
+                        'gold': s.gold_salt,
+                    })
+            else:
+                for s in selected_line.slots.all():
+                    slot_rows.append({
+                        'slot': s, 'slot_no': s.slot_no, 'slot_type': s.slot_type,
+                        'name': s.name, 'open': '无', 'test': '未检测',
+                        'conc': '0', 'grass': '', 'liquid': '0',
+                        'liters': s.std_volume, 'gold': '0',
+                    })
+
+    if request.method == 'POST':
+        line = ProductionLine.objects.filter(
+            id=request.POST.get('line') or 0, is_active=True).first()
+        p_date = _parse_date(request.POST.get('date'), None)
+        p_time = _parse_time(request.POST.get('time') or '')
+        errors = []
+        if not line:
+            errors.append('请选择产线')
+        if not p_date:
+            errors.append('请选择日期')
+        if not p_time:
+            errors.append('请选择时间')
+        ids = request.POST.getlist('s_id')
+        opens = request.POST.getlist('s_open')
+        tests = request.POST.getlist('s_test')
+        concs = request.POST.getlist('s_conc')
+        grasses = request.POST.getlist('s_grass')
+        liquids = request.POST.getlist('s_liquid')
+        golds = request.POST.getlist('s_gold')
+        parsed = []
+        for i, sid in enumerate(ids):
+            if not sid.isdigit():
+                continue
+            slot = Slot.objects.filter(id=int(sid), line=line).first() if line else None
+            if not slot:
+                continue
+            test = tests[i].strip() if i < len(tests) else '未检测'
+            conc = concs[i].strip() if i < len(concs) else ''
+            grass = grasses[i].strip() if i < len(grasses) else ''
+            liquid = liquids[i].strip() if i < len(liquids) else ''
+            if test == '检测':
+                if not conc:
+                    errors.append(f'槽位{slot.slot_no}：检测状态下浓度必填')
+                if not grass:
+                    errors.append(f'槽位{slot.slot_no}：检测状态下罩头类型必填')
+                if not liquid:
+                    errors.append(f'槽位{slot.slot_no}：检测状态下液位必填')
+            parsed.append({
+                'slot': slot, 'open': opens[i].strip() if i < len(opens) else '无',
+                'test': test, 'conc': conc, 'grass': grass,
+                'liquid': liquid, 'gold': golds[i].strip() if i < len(golds) else '0',
+            })
+
+        if not errors and line and p_date and p_time:
+            if ConcentrationRecord.objects.filter(
+                    line=line, sample_date=p_date, sample_time=p_time).exists():
+                errors.append(f'产线「{line.name}」在 {p_date} {p_time} 的浓度数据已存在，'
+                              f'请在"浓度数据查看"中编辑')
+        if errors:
+            for msg in errors:
+                messages.error(request, msg)
+            return redirect('palladium:concentration_input'
+                            + f'?line={line.id if line else ""}&date={p_date or ""}&time={p_time or "08:00"}')
+
+        user = request.user if request.user.is_authenticated else None
+        record = ConcentrationRecord.objects.create(
+            line=line, sample_date=p_date, sample_time=p_time,
+            line_leader=(request.POST.get('line_leader') or '').strip(),
+            ipqc=(request.POST.get('ipqc') or '').strip(),
+            analyst=(request.POST.get('analyst') or '').strip(),
+            created_by=user)
+        for p in parsed:
+            ConcentrationSlot.objects.create(
+                record=record, slot_no=p['slot'].slot_no,
+                slot_type=p['slot'].slot_type, slot_name=p['slot'].name,
+                chemical=p['slot'].chemical_system.name if p['slot'].chemical_system else '',
+                open_status=p['open'], test_status=p['test'],
+                concentration=p['conc'], grass_type=p['grass'],
+                liquid_level=p['liquid'], liters=p['slot'].std_volume,
+                gold_salt=p['gold'])
+        OperationLog.objects.create(
+            user=user,
+            action=f'钯盐浓度输入：{line.name} {p_date} {p_time}（{len(parsed)}个槽位）',
+        )
+        messages.success(request, f'产线「{line.name}」的浓度数据已提交（{len(parsed)}个槽位）')
+        return redirect('palladium:concentration_list')
+
+    context = {
+        'page_title': '钯盐浓度输入',
+        'lines': lines,
+        'line_id': line_id,
+        'sample_date': sample_date,
+        'time_str': time_str,
+        'sample_times': SAMPLE_TIMES,
+        'open_status_options': OPEN_STATUS,
+        'test_status_options': TEST_STATUS,
+        'grass_types': GRASS_TYPES,
+        'selected': selected,
+        'slot_rows': slot_rows,
+        'leader': leader,
+        'ipqc': ipqc,
+    }
+    return render(request, 'palladium/concentration_input.html', context)
+
+
+@require_POST
+def shift_entry_batch(request):
+    """批量标记产线班次已录入（按产线+班次精确勾选）"""
+    date = _parse_date(request.POST.get('date'), timezone.localdate())
+    user = request.user if request.user.is_authenticated else None
+    n = 0
+    for pair in request.POST.getlist('tiles'):
+        pid, _, shift = pair.partition(':')
+        if not pid.isdigit() or shift not in (ShiftEntry.SHIFT_DAY, ShiftEntry.SHIFT_NIGHT):
+            continue
+        line = ProductionLine.objects.filter(id=int(pid)).first()
+        if not line:
+            continue
+        sample_time = datetime.time(8, 0) if shift == ShiftEntry.SHIFT_DAY else datetime.time(20, 0)
+        shift_entry, created = ShiftEntry.objects.get_or_create(
+            line=line, date=date, shift=shift,
+            defaults={'entered_by': user, 'entered_at': timezone.now()})
+        # 同步创建生产日报，默认明细：早班 08:00-20:00、晚班 20:00-次日08:00，类别 无效工时
+        report, report_created = DailyReport.objects.get_or_create(
+            line=line, sample_date=date, sample_time=sample_time,
+            defaults={'created_by': user})
+        if report_created or report.details.count() == 0:
+            if shift == ShiftEntry.SHIFT_DAY:
+                d_start, d_end = datetime.time(8, 0), datetime.time(20, 0)
+            else:
+                d_start, d_end = datetime.time(20, 0), datetime.time(8, 0)
+            ReportDetail.objects.create(
+                report=report, start_time=d_start, end_time=d_end, category='无效工时')
+        if created:
+            n += 1
+    OperationLog.objects.create(user=user, action=f'批量标记班次已录入：{n}条（{date}）')
+    messages.success(request, f'已批量标记 {n} 条班次为已录入')
+    params = {'date': date, 'batch': '1'}
+    return redirect(f"{reverse('palladium:dashboard')}?{urlencode(params)}")
+
+
+@require_POST
+def concentration_batch_fill(request):
+    """批量填写未检测：为勾选的产线班次创建未检测浓度记录（按产线+班次精确勾选）"""
+    date = _parse_date(request.POST.get('date'), timezone.localdate())
+    user = request.user if request.user.is_authenticated else None
+    n = 0
+    for pair in request.POST.getlist('tiles'):
+        pid, _, shift = pair.partition(':')
+        if not pid.isdigit() or shift not in (ShiftEntry.SHIFT_DAY, ShiftEntry.SHIFT_NIGHT):
+            continue
+        line = ProductionLine.objects.filter(id=int(pid)).first()
+        if not line:
+            continue
+        sample_time = datetime.time(8, 0) if shift == ShiftEntry.SHIFT_DAY else datetime.time(20, 0)
+        if ConcentrationRecord.objects.filter(
+                line=line, sample_date=date, sample_time=sample_time).exists():
+            continue
+        record = ConcentrationRecord.objects.create(
+            line=line, sample_date=date, sample_time=sample_time, created_by=user)
+        for slot in line.slots.all():
+            ConcentrationSlot.objects.create(
+                record=record, slot_no=slot.slot_no, slot_type=slot.slot_type,
+                slot_name=slot.name,
+                chemical=slot.chemical_system.name if slot.chemical_system else '',
+                open_status='无', test_status='未检测', concentration='0',
+                liquid_level='0', liters=slot.std_volume, gold_salt='0')
+        n += 1
+    OperationLog.objects.create(user=user, action=f'批量填写未检测浓度：{n}条（{date}）')
+    messages.success(request, f'已批量填写 {n} 条未检测浓度数据')
+    params = {'c_date': date, 'batch': '2'}
+    return redirect(f"{reverse('palladium:dashboard')}?{urlencode(params)}")
+
+
+@require_POST
+def shift_entry_clear(request):
+    """批量清空：删除勾选班次的录入标记和生产日报数据"""
+    date = _parse_date(request.POST.get('date'), timezone.localdate())
+    user = request.user if request.user.is_authenticated else None
+    n_entries = 0
+    n_reports = 0
+    names = []
+    for pair in request.POST.getlist('tiles'):
+        pid, _, shift = pair.partition(':')
+        if not pid.isdigit() or shift not in (ShiftEntry.SHIFT_DAY, ShiftEntry.SHIFT_NIGHT):
+            continue
+        line = ProductionLine.objects.filter(id=int(pid)).first()
+        if not line:
+            continue
+        if shift == ShiftEntry.SHIFT_DAY:
+            reports = DailyReport.objects.filter(line=line, sample_date=date, sample_time__hour__lt=12)
+        else:
+            reports = DailyReport.objects.filter(line=line, sample_date=date, sample_time__hour__gte=12)
+        n_reports += reports.count()
+        reports.delete()
+        n_entries += ShiftEntry.objects.filter(line=line, date=date, shift=shift).delete()[0]
+        names.append(line.name)
+    OperationLog.objects.create(
+        user=user, action=f'批量清空班次录入：{names}（日报{n_reports}条）')
+    messages.success(request, f'已清空 {names} 的班次录入数据（含日报 {n_reports} 条）')
+    params = {'date': date, 'batch': '1'}
+    return redirect(f"{reverse('palladium:dashboard')}?{urlencode(params)}")
+
+
+@require_POST
+def concentration_clear(request):
+    """批量清空：删除勾选班次的浓度记录数据"""
+    date = _parse_date(request.POST.get('date'), timezone.localdate())
+    user = request.user if request.user.is_authenticated else None
+    n = 0
+    names = []
+    for pair in request.POST.getlist('tiles'):
+        pid, _, shift = pair.partition(':')
+        if not pid.isdigit() or shift not in (ShiftEntry.SHIFT_DAY, ShiftEntry.SHIFT_NIGHT):
+            continue
+        line = ProductionLine.objects.filter(id=int(pid)).first()
+        if not line:
+            continue
+        if shift == ShiftEntry.SHIFT_DAY:
+            records = ConcentrationRecord.objects.filter(line=line, sample_date=date, sample_time__hour__lt=12)
+        else:
+            records = ConcentrationRecord.objects.filter(line=line, sample_date=date, sample_time__hour__gte=12)
+        n += records.count()
+        names.append(line.name)
+        records.delete()
+    OperationLog.objects.create(
+        user=user, action=f'批量清空浓度数据：{names}（{n}条）')
+    messages.success(request, f'已清空 {names} 的浓度数据（{n} 条）')
+    params = {'c_date': date, 'batch': '2'}
+    return redirect(f"{reverse('palladium:dashboard')}?{urlencode(params)}")
+
+
+def line_toggle_page(request):
+    """启用/关闭产线"""
+    lines = ProductionLine.objects.all()
+    return render(request, 'palladium/line_toggle.html', {
+        'page_title': '启用/关闭产线',
+        'lines': lines,
+    })
+
+
+@require_POST
+def line_toggle(request, pk):
+    """切换单条产线启用状态"""
+    line = get_object_or_404(ProductionLine, pk=pk)
+    line.is_active = not line.is_active
+    line.save()
+    user = request.user if request.user.is_authenticated else None
+    OperationLog.objects.create(
+        user=user,
+        action=f'{"启用" if line.is_active else "关闭"}产线：{line.name}',
+    )
+    return JsonResponse({'ok': True, 'active': line.is_active})
+
+
+@require_POST
+def line_toggle_all(request):
+    """批量启用/关闭所有产线"""
+    action = request.POST.get('action')
+    if action not in ('on', 'off'):
+        messages.error(request, '无效的操作')
+        return redirect('palladium:line_toggle_page')
+    n = ProductionLine.objects.update(is_active=(action == 'on'))
+    user = request.user if request.user.is_authenticated else None
+    OperationLog.objects.create(
+        user=user,
+        action=f'批量{"启用" if action == "on" else "关闭"}所有产线（{n}条）',
+    )
+    messages.success(request, f'已{"启用" if action == "on" else "关闭"}全部 {n} 条产线')
+    return redirect('palladium:line_toggle_page')
 
 
 def name_diagnosis(request):

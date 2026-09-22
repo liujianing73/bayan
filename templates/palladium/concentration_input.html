@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}钯盐浓度输入 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="page-banner">
+    <h1>钯盐浓度输入</h1>
+</div>
+
+<main class="content create-page">
+    {% include 'messages.html' %}
+
+    <!-- 选择条件（GET 自动载入槽位） -->
+    <form method="get" id="loadForm">
+        <div class="field-row cols-3">
+            <div class="form-item">
+                <label>产线名称</label>
+                <select name="line" onchange="document.getElementById('loadForm').submit()">
+                    <option value="">请选择产线</option>
+                    {% for line in lines %}
+                    <option value="{{ line.id }}" {% if line_id == line.id|stringformat:"s" %}selected{% endif %}>{{ line.name }}{% if line.line_no %}（{{ line.line_no }}）{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <div class="hint">显示有镀钯/镀镍槽位的产线</div>
+            </div>
+            <div class="form-item">
+                <label>日期</label>
+                <input type="date" name="date" value="{{ sample_date|date:'Y-m-d' }}"
+                       onchange="document.getElementById('loadForm').submit()">
+            </div>
+            <div class="form-item">
+                <label>时间</label>
+                <select name="time" onchange="document.getElementById('loadForm').submit()">
+                    {% for t in sample_times %}
+                    <option value="{{ t }}" {% if time_str == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+
+    <form method="post" id="concForm" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="line" value="{{ line_id }}">
+        <input type="hidden" name="date" value="{{ sample_date|date:'Y-m-d' }}">
+        <input type="hidden" name="time" value="{{ time_str }}">
+
+        <!-- 人员信息 -->
+        <div class="field-row cols-3" style="margin-top:6px;">
+            <div class="form-item">
+                <label>线长 <span class="optional">（可选）</span></label>
+                <input type="text" name="line_leader" value="{{ leader }}" placeholder="如果没有对应的生产日报记录，可填写线长" maxlength="50">
+            </div>
+            <div class="form-item">
+                <label>IPQC <span class="optional">（可选）</span></label>
+                <input type="text" name="ipqc" value="{{ ipqc }}" placeholder="如果没有对应的生产日报记录，可填写IPQC" maxlength="50">
+            </div>
+            <div class="form-item">
+                <label>分析员 <span class="optional">（可选）</span></label>
+                <input type="text" name="analyst" placeholder="输入分析员姓名" maxlength="50">
+            </div>
+        </div>
+
+        <!-- 槽位浓度表 -->
+        <div class="detail-wrap" style="margin-top:14px;">
+            <table class="list-table dark-table detail-table">
+                <thead>
+                <tr>
+                    <th>槽位开缸状态</th>
+                    <th>槽位名称/类型</th>
+                    <th>浓度检测状态</th>
+                    <th>浓度 (g/L) <span class="th-mark">检测时必填</span></th>
+                    <th>罩头类型 <span class="th-mark">检测时必填</span></th>
+                    <th>液位 (cm) <span class="th-mark">检测时必填</span></th>
+                    <th>升数 (L)</th>
+                    <th>钯盐添加量 (g) <span class="th-sub">钯盐按槽位</span></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if selected %}
+                    {% for r in slot_rows %}
+                    <tr>
+                        <td><input type="hidden" name="s_id" value="{{ r.slot.id }}">
+                            <select name="s_open" class="cell-select">
+                                {% for o in open_status_options %}
+                                <option value="{{ o }}" {% if r.open == o %}selected{% endif %}>{{ o }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td class="cell-text">{{ r.name }}<span class="cell-type">{{ r.slot_type }}</span></td>
+                        <td>
+                            <select name="s_test" class="cell-select test-select">
+                                {% for t in test_status_options %}
+                                <option value="{{ t }}" {% if r.test == t %}selected{% endif %}>{{ t }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="text" name="s_conc" class="cell-input lock-field" value="{{ r.conc }}" {% if r.test != '检测' %}disabled{% endif %}></td>
+                        <td>
+                            <select name="s_grass" class="cell-select grass-select lock-field" {% if r.test != '检测' %}disabled{% endif %}>
+                                <option value="">{% if r.test != '检测' %}未检测状态下不可选择{% else %}请选择罩头类型{% endif %}</option>
+                                {% for g in grass_types %}
+                                <option value="{{ g }}" {% if r.grass == g %}selected{% endif %}>{{ g }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="text" name="s_liquid" class="cell-input lock-field" value="{{ r.liquid }}" {% if r.test != '检测' %}disabled{% endif %}></td>
+                        <td>
+                            <div class="cell-addon">
+                                <input type="text" class="cell-input cell-readonly" value="{{ r.liters }}" readonly>
+                                <span class="addon-mini">自动</span>
+                            </div>
+                        </td>
+                        <td><input type="text" name="s_gold" class="cell-input" value="{{ r.gold }}"></td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="8" class="empty-cell">请选择产线、日期和时间后录入浓度数据</td></tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if selected %}
+        <div class="create-actions">
+            <a href="{% url 'palladium:concentration_list' %}" class="btn btn-gray btn-lg">返回</a>
+            <button type="submit" class="btn btn-green btn-lg">提交</button>
+        </div>
+        {% else %}
+        <div class="create-actions">
+            <a href="{% url 'palladium:dashboard' %}" class="btn btn-gray btn-lg">返回</a>
+        </div>
+        {% endif %}
+    </form>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    function getCsrf() {
+        return window.getCsrfToken ? window.getCsrfToken() : '';
+    }
+
+    // 罩头/浓度/液位联动：未检测时锁定
+    function updateLock(select) {
+        var row = select.closest('tr');
+        var grass = row.querySelector('.grass-select');
+        var locked = select.value !== '检测';
+        grass.disabled = locked;
+        grass.options[0].text = locked ? '未检测状态下不可选择' : '请选择罩头类型';
+        if (locked) grass.value = '';
+        row.querySelectorAll('.lock-field').forEach(function (f) { f.disabled = locked; });
+    }
+    document.querySelectorAll('.test-select').forEach(function (sel) {
+        sel.addEventListener('change', function () { updateLock(sel); });
+    });
+
+    // 提交校验：检测行必填浓度/罩头/液位
+    document.getElementById('concForm').addEventListener('submit', function (e) {
+        if (!document.querySelector('select[name="line"]').value) {
+            window.alert('请选择产线');
+            e.preventDefault();
+            return;
+        }
+        var bad = false;
+        document.querySelectorAll('#concForm tbody tr').forEach(function (tr, i) {
+            if (bad) return;
+            var test = tr.querySelector('.test-select');
+            if (!test) return;
+            if (test.value === '检测') {
+                var conc = tr.querySelector('[name="s_conc"]').value.trim();
+                var grass = tr.querySelector('.grass-select').value;
+                var liquid = tr.querySelector('[name="s_liquid"]').value.trim();
+                if (!conc) { window.alert('槽位' + (i + 1) + '：检测状态下浓度必填'); bad = true; }
+                else if (!grass) { window.alert('槽位' + (i + 1) + '：检测状态下罩头类型必填'); bad = true; }
+                else if (!liquid) { window.alert('槽位' + (i + 1) + '：检测状态下液位必填'); bad = true; }
+            }
+        });
+        if (bad) e.preventDefault();
+    });
+})();
+</script>
+{% endblock %}

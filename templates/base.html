@@ -14,13 +14,13 @@
     <div class="navbar-inner">
         <a class="navbar-brand" href="{% url 'palladium:dashboard' %}">钯盐系统</a>
 
-        <nav class="navbar-menu">
+        <nav class="navbar-menu" {% if not user.is_authenticated %}style="display:none"{% endif %}>
             <ul>
                 <li class="has-dropdown">
                     <a href="javascript:void(0)">常用输入 <span class="caret"></span></a>
                     <div class="dropdown">
-                        <a href="{% url 'palladium:placeholder' '填写生产日报' %}">填写生产日报</a>
-                        <a href="{% url 'palladium:placeholder' '选金/点镀浓度输入' %}">选金/点镀浓度输入</a>
+                        <a href="{% url 'palladium:report_create' %}">填写生产日报</a>
+                        <a href="{% url 'palladium:concentration_input' %}">钯盐浓度输入</a>
                     </div>
                 </li>
                 <li class="has-dropdown">
@@ -53,7 +53,7 @@
                     </div>
                 </li>
                 <li>
-                    <a href="{% url 'palladium:placeholder' '启用/关闭产线' %}">启用/关闭产线</a>
+                    <a href="{% url 'palladium:line_toggle_page' %}">启用/关闭产线</a>
                 </li>
                 <li>
                     <a class="nav-danger" href="{% url 'palladium:placeholder' '下载数据库备份' %}">下载数据库备份</a>
@@ -65,19 +65,20 @@
         </nav>
 
         <div class="navbar-right">
-            <a class="btn btn-outline-green" href="{% url 'palladium:placeholder' '共享文档' %}">共享文档</a>
-            <a class="btn btn-outline" href="{% url 'palladium:placeholder' '备忘录' %}">📝 备忘录</a>
-            <div class="has-dropdown user-menu">
-                <a href="javascript:void(0)">{% if user.is_authenticated %}{{ user.username }}{% else %}未登录{% endif %} <span class="caret"></span></a>
-                <div class="dropdown dropdown-right">
-                    {% if user.is_authenticated %}
+            {% if user.is_authenticated %}
+                <a class="btn btn-outline-green" href="{% url 'palladium:placeholder' '共享文档' %}">共享文档</a>
+                <a class="btn btn-outline" href="{% url 'palladium:placeholder' '备忘录' %}">📝 备忘录</a>
+                <div class="has-dropdown user-menu">
+                    <a href="javascript:void(0)">{{ user.username }} <span class="caret"></span></a>
+                    <div class="dropdown dropdown-right">
                         <a href="{% url 'admin:index' %}">管理后台</a>
-                        <a href="{% url 'admin:logout' %}">退出登录</a>
-                    {% else %}
-                        <a href="{% url 'admin:login' %}">登录</a>
-                    {% endif %}
+                        <a href="{% url 'palladium:logout' %}">退出登录</a>
+                    </div>
                 </div>
-            </div>
+            {% else %}
+                <a class="btn btn-outline-green" href="{% url 'palladium:login' %}">登录</a>
+                <a class="btn btn-green" href="{% url 'palladium:register' %}">注册</a>
+            {% endif %}
         </div>
     </div>
 </header>

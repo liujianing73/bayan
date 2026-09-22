@@ -1,0 +1,328 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}填写生产日报 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<div class="page-banner">
+    <h1>输入生产日报</h1>
+</div>
+
+<main class="content create-page">
+    {% include 'messages.html' %}
+
+    <form method="post" id="reportForm" novalidate>
+        {% csrf_token %}
+
+        <!-- 基础字段 -->
+        <div class="base-panel">
+            <div class="field-row cols-3">
+                <div class="form-item">
+                    <label>产线名称</label>
+                <select name="line" id="id_line">
+                    <option value="">请选择产线</option>
+                    {% for line in lines %}
+                    <option value="{{ line.id }}" {% if init_line == line.id|stringformat:"s" %}selected{% endif %}>{{ line.name }}{% if line.line_no %}（{{ line.line_no }}）{% endif %}</option>
+                    {% endfor %}
+                </select>
+                    <div class="error-msg hidden"></div>
+                </div>
+                <div class="form-item">
+                    <label>时间</label>
+                <select name="sample_time" id="id_sample_time">
+                    {% for t in sample_times %}
+                    <option value="{{ t }}" {% if init_time == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+                    <div class="error-msg hidden"></div>
+                </div>
+                <div class="form-item">
+                    <label>日期</label>
+                    <input type="date" name="sample_date" id="id_sample_date" value="{{ init_date|date:'Y-m-d' }}">
+                    <div class="error-msg hidden"></div>
+                </div>
+            </div>
+
+            <div class="field-row cols-3">
+                <div class="form-item">
+                    <label>线长 <span class="optional">（可选）</span></label>
+                    <input type="text" name="line_leader" list="leader-list" placeholder="输入线长姓名或从下拉列表选择" maxlength="50">
+                    <datalist id="leader-list"></datalist>
+                </div>
+                <div class="form-item">
+                    <label>IPQC</label>
+                    <input type="text" name="ipqc" list="ipqc-list" placeholder="IPQC姓名 可选" maxlength="50">
+                    <datalist id="ipqc-list"></datalist>
+                </div>
+                <div></div>
+            </div>
+        </div>
+
+        <!-- 时间段明细 -->
+        <h3 class="section-title">时间段明细</h3>
+        <div class="detail-wrap">
+        <table class="list-table dark-table detail-table">
+            <thead>
+            <tr>
+                <th style="width:11%">开始时间</th>
+                <th style="width:11%">结束时间</th>
+                <th style="width:10%">类别</th>
+                <th style="width:24%">料号</th>
+                <th style="width:18%">客户名称</th>
+                <th style="width:16%">生产数量（kpcs）</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="detail-list">
+            <tr>
+                <td><input type="time" name="d_start"><div class="error-msg hidden"></div></td>
+                <td><input type="time" name="d_end"><div class="error-msg hidden"></div></td>
+                <td>
+                    <select name="d_cat" class="cat-select">
+                        {% for c in categories %}
+                        <option value="{{ c }}" {% if c == '生产' %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <td>
+                    <input type="text" name="d_part" class="part-input" list="part-list"
+                           placeholder="输入料号搜索（支持模糊匹配）或点击▼选择...">
+                    <div class="error-msg hidden"></div>
+                </td>
+                <td><span class="cust-cell"></span></td>
+                <td><input type="text" name="d_qty" class="qty-input"><div class="error-msg hidden"></div></td>
+                <td><button type="button" class="btn btn-red btn-sm btn-delete-detail">删除</button></td>
+            </tr>
+            </tbody>
+        </table>
+        </div>
+        <datalist id="part-list">
+            {% for p in products %}
+            <option value="{{ p.part_no }}">{{ p.customer.name|default:'' }}</option>
+            {% endfor %}
+        </datalist>
+
+        <div style="margin-top:16px;">
+            <button type="button" class="btn btn-dark" id="btn-add-detail">添加时间段</button>
+        </div>
+
+        <!-- 时长徽章 -->
+        <div class="duration-badges">
+            <span class="count-badge cb-orange" id="total-badge">总时长: 0.0小时</span>
+            <span class="count-badge cb-yellow" id="gap-badge">差额: 12.0小时</span>
+        </div>
+
+        <div class="create-actions">
+            <button type="button" class="btn btn-red-outline" id="btn-clear">清除内容</button>
+        </div>
+        <div class="create-actions" style="margin-top:14px;">
+            <a href="{% url 'palladium:report_list' %}" class="btn btn-gray btn-lg">返回</a>
+            <button type="submit" class="btn btn-green btn-lg">提交</button>
+        </div>
+    </form>
+</main>
+
+<!-- 明细行模板 -->
+<template id="detail-template">
+    <tr>
+        <td><input type="time" name="d_start"><div class="error-msg hidden"></div></td>
+        <td><input type="time" name="d_end"><div class="error-msg hidden"></div></td>
+        <td>
+            <select name="d_cat" class="cat-select">
+                {% for c in categories %}
+                <option value="{{ c }}" {% if c == '生产' %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            <input type="text" name="d_part" class="part-input" list="part-list"
+                   placeholder="输入料号搜索（支持模糊匹配）或点击▼选择...">
+            <div class="error-msg hidden"></div>
+        </td>
+        <td><span class="cust-cell"></span></td>
+        <td><input type="text" name="d_qty" class="qty-input"><div class="error-msg hidden"></div></td>
+        <td><button type="button" class="btn btn-red btn-sm btn-delete-detail">删除</button></td>
+    </tr>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('reportForm');
+    var detailList = document.getElementById('detail-list');
+    var detailTemplate = document.getElementById('detail-template');
+    var totalBadge = document.getElementById('total-badge');
+    var gapBadge = document.getElementById('gap-badge');
+    var MIN_MINUTES = 720;
+
+    // 料号 → 客户 映射（选中料号后自动带出客户）
+    window.PART_CUSTOMERS = {
+        {% for p in products %}"{{ p.part_no|escapejs }}": "{{ p.customer.name|default:''|escapejs }}"{% if not forloop.last %}, {% endif %}{% endfor %}
+    };
+
+    function minutesBetween(s, e) {
+        if (!s || !e) return 0;
+        var sh = +s.split(':')[0], sm = +s.split(':')[1];
+        var eh = +e.split(':')[0], em = +e.split(':')[1];
+        var d = (eh * 60 + em) - (sh * 60 + sm);
+        if (d < 0) d += 1440;
+        return d;
+    }
+
+    function updateTotals() {
+        var total = 0;
+        detailList.querySelectorAll('tr').forEach(function (tr) {
+            var s = tr.querySelector('[name="d_start"]').value;
+            var e = tr.querySelector('[name="d_end"]').value;
+            total += minutesBetween(s, e);
+        });
+        totalBadge.textContent = '总时长: ' + (total / 60).toFixed(1) + '小时';
+        var gap = Math.max(MIN_MINUTES - total, 0);
+        gapBadge.textContent = '差额: ' + (gap / 60).toFixed(1) + '小时';
+        // 满12小时后差额徽章变绿
+        gapBadge.classList.toggle('cb-green-badge', gap === 0);
+    }
+
+    // 料号选择 → 自动带出客户
+    function fillCustomer(input) {
+        var val = input.value.trim();
+        var cust = window.PART_CUSTOMERS[val] || '';
+        input.closest('tr').querySelector('.cust-cell').textContent = cust;
+    }
+    detailList.addEventListener('change', function (e) {
+        if (e.target.classList.contains('part-input')) fillCustomer(e.target);
+        if (e.target.name === 'd_start' || e.target.name === 'd_end') updateTotals();
+    });
+    detailList.addEventListener('input', function (e) {
+        if (e.target.classList.contains('part-input')) {
+            fillCustomer(e.target);  // 精确匹配料号时带出客户，否则清空
+        }
+    });
+    detailList.addEventListener('click', function (e) {
+        var del = e.target.closest('.btn-delete-detail');
+        if (del) {
+            if (detailList.querySelectorAll('tr').length > 1) {
+                del.closest('tr').remove();
+                updateTotals();
+            } else {
+                window.alert('至少保留一行时间段明细');
+            }
+        }
+    });
+
+    document.getElementById('btn-add-detail').addEventListener('click', function () {
+        detailList.appendChild(detailTemplate.content.cloneNode(true));
+    });
+
+    // 清除内容
+    document.getElementById('btn-clear').addEventListener('click', function () {
+        if (!window.confirm('确认清除所有已填写内容？')) return;
+        form.querySelectorAll('input[type="text"], input[type="time"], input[type="date"]').forEach(function (i) { i.value = ''; });
+        form.querySelectorAll('select').forEach(function (s) { s.selectedIndex = 0; });
+        detailList.innerHTML = '';
+        detailList.appendChild(detailTemplate.content.cloneNode(true));
+        updateTotals();
+    });
+
+    function setError(el, msg) {
+        var wrap = el.closest('.form-item');
+        if (!wrap) return;
+        var err = wrap.querySelector('.error-msg');
+        if (msg) {
+            el.classList.add('is-invalid');
+            err.innerHTML = '<div>' + msg + '</div><div>此字段为必填项</div>';
+            err.classList.remove('hidden');
+        } else {
+            el.classList.remove('is-invalid');
+            err.classList.add('hidden');
+        }
+    }
+
+    function setError(el, msg) {
+        var wrap = el.closest('td') || el.closest('.form-item');
+        var err = wrap ? wrap.querySelector('.error-msg') : null;
+        if (msg) {
+            el.classList.add('is-invalid');
+            if (err) {
+                err.innerHTML = '<div>' + msg + '</div><div>此字段为必填项</div>';
+                err.classList.remove('hidden');
+            }
+        } else {
+            el.classList.remove('is-invalid');
+            if (err) { err.textContent = ''; err.classList.add('hidden'); }
+        }
+    }
+
+    var NEED_PART = ['生产', '换线', '重工', '试做', '判定', '阳极添加', '异常<90分钟'];
+    var NEED_QTY = ['生产', '重工', '试做'];
+
+    // 输入时清除红色提示
+    form.addEventListener('input', function (e) {
+        if (e.target.classList.contains('is-invalid')) setError(e.target, null);
+    });
+    form.addEventListener('change', function (e) {
+        if (e.target.classList.contains('is-invalid')) setError(e.target, null);
+    });
+
+    // 提交校验：未填字段红色提示
+    form.addEventListener('submit', function (e) {
+        var ok = true;
+        var firstBad = null;
+        ['id_line', 'id_sample_time', 'id_sample_date'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (!el.value) {
+                setError(el, el.tagName === 'SELECT' ? '请选择' : '请选择日期');
+                ok = false; firstBad = firstBad || el;
+            } else {
+                setError(el, null);
+            }
+        });
+
+        detailList.querySelectorAll('tr').forEach(function (tr, i) {
+            var s = tr.querySelector('[name="d_start"]');
+            var en = tr.querySelector('[name="d_end"]');
+            var cat = tr.querySelector('[name="d_cat"]');
+            var part = tr.querySelector('[name="d_part"]');
+            var qty = tr.querySelector('[name="d_qty"]');
+            [s, en, part, qty].forEach(function (el) { setError(el, null); });
+            if (!s.value) { setError(s, '请选择开始时间'); ok = false; firstBad = firstBad || s; }
+            if (!en.value) { setError(en, '请选择结束时间'); ok = false; firstBad = firstBad || en; }
+            if (s.value && en.value && minutesBetween(s.value, en.value) === 0) {
+                setError(s, '开始与结束时间相同', false);
+                setError(en, '开始与结束时间相同', false);
+                ok = false; firstBad = firstBad || s;
+            }
+            if (NEED_PART.indexOf(cat.value) !== -1 && !part.value.trim()) {
+                setError(part, '请输入料号'); ok = false; firstBad = firstBad || part;
+            }
+            if (NEED_QTY.indexOf(cat.value) !== -1 && !qty.value.trim()) {
+                setError(qty, '请输入生产数量'); ok = false; firstBad = firstBad || qty;
+            }
+        });
+
+        if (!ok) {
+            e.preventDefault();
+            if (firstBad) firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        var total = 0;
+        detailList.querySelectorAll('tr').forEach(function (tr) {
+            var s = tr.querySelector('[name="d_start"]').value;
+            var e = tr.querySelector('[name="d_end"]').value;
+            total += minutesBetween(s, e);
+        });
+        if (total < MIN_MINUTES) {
+            e.preventDefault();
+            window.alert('时间未满十二小时（当前总时长 ' + (total / 60).toFixed(1) +
+                ' 小时，差额 ' + ((MIN_MINUTES - total) / 60).toFixed(1) + ' 小时），无法保存');
+        }
+    });
+})();
+</script>
+{% endblock %}

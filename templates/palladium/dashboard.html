@@ -1,6 +1,11 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}欢迎使用钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}?v=2">
+{% endblock %}
 
 {% block content %}
 <div class="dash">
@@ -54,45 +59,53 @@
                     <input type="text" id="status-search" placeholder="输入产线名称..." value="{{ search }}">
                 </div>
                 <div class="filter-item">
-                    <label>操作模式</label>
-                    <a class="btn btn-cyan" href="{% url 'palladium:placeholder' '批量录入模式' %}">批量模式</a>
+                    <button type="button" class="btn btn-cyan batch-toggle" id="batch-toggle-1"
+                            onclick="batchToggle('1')">批量模式</button>
                 </div>
+                <span class="batch-controls hidden" id="batch-controls-1">
+                    <button type="button" class="btn btn-outline-green" onclick="batchSelect('1', 'all')">全选</button>
+                    <button type="button" class="btn btn-cyan-outline" onclick="batchSelect('1', 'day')">全选白班</button>
+                    <button type="button" class="btn btn-red-outline" onclick="clearData('1', '{% url 'palladium:shift_entry_clear' %}', '确认清空勾选班次的已录入数据？将删除对应生产日报')">清空</button>
+                    <button type="button" class="btn btn-orange"
+                            onclick="batchSubmit('1', '{% url 'palladium:shift_entry_batch' %}', '确认批量标记已录入？')">批量标记已录入</button>
+                    <button type="button" class="btn" onclick="batchExit('1')">退出批量</button>
+                </span>
             </div>
 
             {% if line_cards %}
-            <div class="line-grid">
+            <div class="line-grid {% if '1' in batch_sections %}batch-active{% endif %}" id="grid-1">
                 {% for card in line_cards %}
                 <div class="line-card">
                     <h3 class="line-name">{{ card.line.name }}{% if card.line.line_no %} ({{ card.line.line_no }}){% endif %}</h3>
                     <div class="shift-tiles">
-                        {% with entry=card.day %}
-                        <a class="shift-tile {% if entry %}entered{% else %}missing{% endif %}"
-                           href="{% url 'palladium:placeholder' '班次录入' %}?line={{ card.line.id }}&shift=day">
+                        <a class="shift-tile shift-day {% if card.day %}entered{% else %}missing{% endif %}" data-sec="1"
+                           href="{{ card.day_url }}">
+                            <input type="checkbox" class="batch-check" data-sec="1" data-line="{{ card.line.id }}" data-shift="day"  onclick="event.stopPropagation()">
                             <span class="shift-title">早班</span>
-                            {% if entry %}
+                            {% if card.day %}
                             <span class="shift-state">已录入</span>
-                            <span class="shift-time">{{ entry.entered_at|date:'H:i' }}</span>
+                            <span class="shift-time">08:00</span>
                             <span class="shift-action">点击修改</span>
                             {% else %}
                             <span class="shift-state">未录入</span>
+                            <span class="shift-time">08:00</span>
                             <span class="shift-action">点击录入</span>
                             {% endif %}
                         </a>
-                        {% endwith %}
-                        {% with entry=card.night %}
-                        <a class="shift-tile {% if entry %}entered{% else %}missing{% endif %}"
-                           href="{% url 'palladium:placeholder' '班次录入' %}?line={{ card.line.id }}&shift=night">
+                        <a class="shift-tile shift-night {% if card.night %}entered{% else %}missing{% endif %}" data-sec="1"
+                           href="{{ card.night_url }}">
+                            <input type="checkbox" class="batch-check" data-sec="1" data-line="{{ card.line.id }}" data-shift="night"  onclick="event.stopPropagation()">
                             <span class="shift-title">晚班</span>
-                            {% if entry %}
+                            {% if card.night %}
                             <span class="shift-state">已录入</span>
-                            <span class="shift-time">{{ entry.entered_at|date:'H:i' }}</span>
+                            <span class="shift-time">20:00</span>
                             <span class="shift-action">点击修改</span>
                             {% else %}
                             <span class="shift-state">未录入</span>
+                            <span class="shift-time">20:00</span>
                             <span class="shift-action">点击录入</span>
                             {% endif %}
                         </a>
-                        {% endwith %}
                     </div>
                 </div>
                 {% endfor %}
@@ -100,17 +113,82 @@
             {% else %}
             <div class="empty-tip">没有符合条件的产线</div>
             {% endif %}
+            <form method="post" id="batch-post-1" action="{% url 'palladium:shift_entry_batch' %}" class="hidden">{% csrf_token %}</form>
         </div>
     </section>
 
-    <!-- 选金/点镀浓度输入 -->
+    <!-- 钯盐浓度输入 -->
     <section class="dash-section">
         <div class="section-header">
-            <h2>选金/点镀浓度输入 <span class="section-sub">(今日早班/晚班)</span></h2>
+            <h2>钯盐浓度输入 <span class="section-sub">({{ c_date_label }}早班/晚班)</span></h2>
             <button type="button" class="toggle-btn" data-toggle="concentration">展开</button>
         </div>
         <div id="concentration" class="section-body hidden">
-            <div class="empty-tip">浓度录入区块（待后续截图确认后完善）</div>
+            <div class="filter-bar">
+                <div class="filter-item">
+                    <label>选择日期</label>
+                    <input type="date" id="conc-date" value="{{ c_date|date:'Y-m-d' }}">
+                </div>
+                <div class="filter-item">
+                    <label>搜索产线</label>
+                    <input type="text" id="conc-search" placeholder="输入产线名称..." value="{{ c_search }}">
+                </div>
+                <div class="filter-item">
+                    <button type="button" class="btn btn-cyan batch-toggle" id="batch-toggle-2"
+                            onclick="batchToggle('2')">批量模式</button>
+                </div>
+                <span class="batch-controls hidden" id="batch-controls-2">
+                    <button type="button" class="btn btn-outline-green" onclick="batchSelect('2', 'all')">全选</button>
+                    <button type="button" class="btn btn-cyan-outline" onclick="batchSelect('2', 'day')">全选白班</button>
+                    <button type="button" class="btn btn-red-outline" onclick="clearData('2', '{% url 'palladium:concentration_clear' %}', '确认清空勾选班次的浓度数据？将删除对应浓度记录')">清空</button>
+                    <button type="button" class="btn btn-orange"
+                            onclick="batchSubmit('2', '{% url 'palladium:concentration_batch_fill' %}', '确认批量填写未检测？已存在的记录会跳过')">批量填写未检测</button>
+                    <button type="button" class="btn" onclick="batchExit('2')">退出批量</button>
+                </span>
+            </div>
+
+            {% if conc_cards %}
+            <div class="line-grid {% if '2' in batch_sections %}batch-active{% endif %}" id="grid-2">
+                {% for card in conc_cards %}
+                <div class="line-card">
+                    <h3 class="line-name">{{ card.line.name }}{% if card.line.line_no %} ({{ card.line.line_no }}){% endif %}</h3>
+                    <div class="shift-tiles">
+                        <a class="shift-tile shift-day {% if card.day %}entered{% else %}missing{% endif %}" data-sec="2"
+                           href="{{ card.day_url }}">
+                            <input type="checkbox" class="batch-check" data-sec="2" data-line="{{ card.line.id }}" data-shift="day"  onclick="event.stopPropagation()">
+                            <span class="shift-title">早班</span>
+                            {% if card.day %}
+                            <span class="shift-state">已录入</span>
+                            <span class="shift-time">08:00</span>
+                            <span class="shift-action">点击修改</span>
+                            {% else %}
+                            <span class="shift-state">未录入</span>
+                            <span class="shift-time">08:00</span>
+                            <span class="shift-action">点击录入</span>
+                            {% endif %}
+                        </a>
+                        <a class="shift-tile shift-night {% if card.night %}entered{% else %}missing{% endif %}" data-sec="2"
+                           href="{{ card.night_url }}">
+                            <input type="checkbox" class="batch-check" data-sec="2" data-line="{{ card.line.id }}" data-shift="night"  onclick="event.stopPropagation()">
+                            <span class="shift-title">晚班</span>
+                            {% if card.night %}
+                            <span class="shift-state">已录入</span>
+                            <span class="shift-time">20:00</span>
+                            <span class="shift-action">点击修改</span>
+                            {% else %}
+                            <span class="shift-state">未录入</span>
+                            <span class="shift-time">20:00</span>
+                            <span class="shift-action">点击录入</span>
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-tip">没有符合条件的产线</div>
+            {% endif %}
+            <form method="post" id="batch-post-2" action="{% url 'palladium:concentration_batch_fill' %}" class="hidden">{% csrf_token %}</form>
         </div>
     </section>
 
@@ -128,9 +206,9 @@
             <h3>填写生产日报</h3>
             <p>录入每日生产相关信息</p>
         </a>
-        <a class="quick-card" href="{% url 'palladium:placeholder' '选金/点镀浓度输入' %}">
-            <h3>选金/点镀浓度输入</h3>
-            <p>录入各槽位选金/点镀浓度及相关信息</p>
+        <a class="quick-card" href="{% url 'palladium:concentration_input' %}">
+            <h3>钯盐浓度输入</h3>
+            <p>录入各槽位钯盐浓度及相关信息</p>
         </a>
         <a class="quick-card" href="{% url 'palladium:placeholder' '新增标准参数' %}">
             <h3>新增标准参数</h3>
@@ -178,6 +256,104 @@
             }
         });
     }
+
+    // 浓度输入区块：日期变更 / 回车搜索
+    var concDate = document.getElementById('conc-date');
+    if (concDate) {
+        concDate.addEventListener('change', function () {
+            var url = new URL(window.location.href);
+            url.searchParams.set('c_date', concDate.value);
+            window.location.href = url;
+        });
+    }
+    var concSearch = document.getElementById('conc-search');
+    if (concSearch) {
+        concSearch.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                var url = new URL(window.location.href);
+                url.searchParams.set('c_q', concSearch.value.trim());
+                window.location.href = url;
+            }
+        });
+    }
+
+    /* ============ 批量模式 ============ */
+    var batchState = { '1': false, '2': false };
+
+    function enableBatch(sec) {
+        batchState[sec] = true;
+        document.getElementById('grid-' + sec).classList.add('batch-active');
+        document.getElementById('batch-controls-' + sec).classList.remove('hidden');
+        var t = document.getElementById('batch-toggle-' + sec);
+        t.classList.remove('btn-cyan');
+        t.classList.add('btn-dark');
+        t.textContent = '批量模式（已启用）';
+    }
+
+    window.batchToggle = function (sec) { if (!batchState[sec]) enableBatch(sec); };
+
+    window.batchExit = function (sec) {
+        batchState[sec] = false;
+        document.getElementById('grid-' + sec).classList.remove('batch-active');
+        document.getElementById('batch-controls-' + sec).classList.add('hidden');
+        document.querySelectorAll('#grid-' + sec + ' .batch-check').forEach(function (cb) { cb.checked = false; });
+        var t = document.getElementById('batch-toggle-' + sec);
+        t.classList.add('btn-cyan');
+        t.classList.remove('btn-dark');
+        t.textContent = '批量模式';
+    };
+
+    window.batchSelect = function (sec, mode) {
+        document.querySelectorAll('#grid-' + sec + ' .batch-check').forEach(function (cb) {
+            if (mode === 'all') cb.checked = true;
+            else if (mode === 'day') cb.checked = cb.dataset.shift === 'day';
+            else cb.checked = false;
+        });
+    };
+
+    window.clearData = function (sec, url, msg) { batchSubmit(sec, url, msg); };
+
+    window.batchSubmit = function (sec, url, msg) {
+        var checks = Array.from(document.querySelectorAll('#grid-' + sec + ' .batch-check:checked'));
+        if (!checks.length) { window.alert('请先勾选要批量填写的班次'); return; }
+        if (!window.confirm(msg + '（共 ' + checks.length + ' 项）')) return;
+        var form = document.getElementById('batch-post-' + sec);
+        form.action = url;
+        form.querySelectorAll('input[name="lines"], input[name="shifts"], input[name="tiles"], input[name="date"], input[name="batch"]')
+            .forEach(function (i) { i.remove(); });
+        function addHidden(name, value) {
+            var i = document.createElement('input');
+            i.type = 'hidden'; i.name = name; i.value = value;
+            form.appendChild(i);
+        }
+        checks.forEach(function (cb) { addHidden('tiles', cb.dataset.line + ':' + cb.dataset.shift); });
+        addHidden('date', (sec === '1' ? document.getElementById('status-date') : document.getElementById('conc-date')).value);
+        addHidden('batch', sec);
+        form.submit();
+    };
+
+    // 批量操作后从 URL 恢复批量状态（保持当前页面）
+    {% if '1' in batch_sections %}
+    enableBatch('1');
+    document.getElementById('line-status').classList.remove('hidden');
+    document.querySelector('[data-toggle="line-status"]').textContent = '收起';
+    {% endif %}
+    {% if '2' in batch_sections %}
+    enableBatch('2');
+    document.getElementById('concentration').classList.remove('hidden');
+    document.querySelector('[data-toggle="concentration"]').textContent = '收起';
+    {% endif %}
+
+    // 批量模式下点击班次块=勾选，不跳转
+    document.querySelectorAll('.shift-tile[data-sec]').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+            if (batchState[a.dataset.sec]) {
+                e.preventDefault();
+                var cb = a.querySelector('.batch-check');
+                cb.checked = !cb.checked;
+            }
+        });
+    });
 })();
 </script>
 {% endblock %}

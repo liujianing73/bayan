@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}启用/关闭产线 - 钯盐系统{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/page-form.css' %}">
+{% endblock %}
+
+{% block page_body %}
+<main class="content toggle-page">
+    {% include 'messages.html' %}
+
+    <section class="form-card">
+        <div class="form-card-header">
+            <h2>启用/关闭产线</h2>
+            <div class="header-actions">
+                <form method="post" action="{% url 'palladium:line_toggle_all' %}" class="inline-form"
+                      data-confirm="确认启用所有产线？">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="on">
+                    <button type="submit" class="btn btn-outline-green">全部启用</button>
+                </form>
+                <form method="post" action="{% url 'palladium:line_toggle_all' %}" class="inline-form"
+                      data-confirm="确认关闭所有产线？">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="off">
+                    <button type="submit" class="btn btn-red-outline">全部关闭</button>
+                </form>
+            </div>
+        </div>
+        <div class="form-card-body">
+            <p class="toggle-desc">快速批量调整所有产线的启用状态。只有勾选的产线会显示在"生产日报"和"浓度输入"中。</p>
+
+            <table class="list-table toggle-table">
+                <thead>
+                <tr>
+                    <th>启用</th>
+                    <th>产线名称</th>
+                    <th>车间楼层</th>
+                    <th>镀种</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for line in lines %}
+                <tr>
+                    <td>
+                        <label class="switch switch-blue">
+                            <input type="checkbox" class="toggle-line" data-id="{{ line.id }}"
+                                   {% if line.is_active %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                        <span class="toggle-label {% if line.is_active %}on{% else %}off{% endif %}">{{ line.is_active|yesno:"启用,关闭" }}</span>
+                    </td>
+                    <td>{{ line.name }}{% if line.line_no %}（{{ line.line_no }}）{% endif %}</td>
+                    <td>{{ line.floor|default:'—' }}</td>
+                    <td>{{ line.plating_type.name|default:'—' }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="empty-cell">暂无产线</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    function getCsrf() {
+        return window.getCsrfToken ? window.getCsrfToken() : '';
+    }
+
+    // 单行切换（AJAX 即时保存）
+    document.querySelectorAll('.toggle-line').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            var label = cb.closest('td').querySelector('.toggle-label');
+            fetch('/lines/' + cb.dataset.id + '/toggle/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrf() },
+            }).then(function (resp) { return resp.json(); }).then(function (data) {
+                if (!data.ok) throw new Error('failed');
+                cb.checked = data.active;
+                label.textContent = data.active ? '启用' : '关闭';
+                label.classList.toggle('on', data.active);
+                label.classList.toggle('off', !data.active);
+            }).catch(function () {
+                cb.checked = !cb.checked;  // 失败回滚
+                window.alert('切换失败，请重试');
+            });
+        });
+    });
+
+    // 批量确认
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+        });
+    });
+})();
+</script>
+{% endblock %}

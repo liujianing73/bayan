@@ -1,0 +1,59 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 钯盐系统</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'css/auth.css' %}?v=2">
+</head>
+<body class="auth-body">
+
+<header class="auth-nav">
+    <a class="auth-brand" href="{% url 'palladium:dashboard' %}">钯盐系统</a>
+    <div class="auth-nav-actions">
+        <a class="btn btn-outline-green" href="{% url 'palladium:login' %}">登录</a>
+        <a class="btn btn-green" href="{% url 'palladium:register' %}">注册</a>
+    </div>
+</header>
+
+<main class="auth-main">
+    <div class="auth-card">
+        <h1>注册</h1>
+        <p class="auth-sub">创建您的钯盐系统账号</p>
+
+        {% if error %}<div class="auth-error">{{ error }}</div>{% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="auth-field">
+                <label>用户名</label>
+                <input type="text" name="username" value="{{ username }}" maxlength="50">
+            </div>
+            <div class="auth-field">
+                <label>密码 <span class="optional">（至少 6 位）</span></label>
+                <input type="password" name="password" maxlength="128">
+            </div>
+            <div class="auth-field">
+                <label>确认密码</label>
+                <input type="password" name="password2" maxlength="128">
+            </div>
+            <button type="submit" class="auth-submit">注册</button>
+        </form>
+
+        <p class="auth-hint">已有账号？ <a href="{% url 'palladium:login' %}">直接登录</a></p>
+    </div>
+</main>
+
+<footer class="auth-footer">
+    <span>© 2025 钯盐系统. All rights reserved.</span>
+    <span class="auth-footer-links">
+        <a href="{% url 'palladium:placeholder' '操作说明' %}">使用说明</a>
+        <a href="{% url 'palladium:placeholder' '联系我们' %}">联系我们</a>
+        <a href="javascript:void(0)" onclick="window.scrollTo({top:0,behavior:'smooth'})">回到顶部</a>
+    </span>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,156 @@
+/* ===================== 登录/注册页 ===================== */
+.auth-body {
+    background: #f5f6f8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.auth-nav {
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    height: 60px;
+}
+
+.auth-brand {
+    font-size: 17px;
+    font-weight: 700;
+    color: #222;
+}
+
+.auth-nav-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.auth-main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 56px 20px;
+}
+
+.auth-card {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+    width: 100%;
+    max-width: 620px;
+    padding: 48px 72px 56px;
+    text-align: center;
+}
+
+.auth-card h1 {
+    font-size: 34px;
+    font-weight: 700;
+    color: #222;
+}
+
+.auth-sub {
+    color: #80868b;
+    font-size: 15px;
+    margin: 14px 0 30px;
+}
+
+.auth-field {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.auth-field label {
+    display: block;
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.auth-field input {
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid #dcdfe4;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.auth-field input:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.13);
+}
+
+.auth-error {
+    background: #fce8e6;
+    color: #d93025;
+    border: 1px solid #f5c6c0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    margin-bottom: 18px;
+    text-align: center;
+}
+
+.auth-submit {
+    width: 100%;
+    height: 48px;
+    background: #1e8e3e;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+
+.auth-submit:hover {
+    background: #187a35;
+    box-shadow: 0 3px 12px rgba(30, 142, 62, 0.35);
+}
+
+.auth-hint {
+    margin-top: 24px;
+    font-size: 14px;
+    color: #333;
+}
+
+.auth-hint a {
+    color: #1a73e8;
+}
+
+.auth-hint a:hover {
+    text-decoration: underline;
+}
+
+.auth-demo {
+    margin-top: 10px;
+    color: #9aa0a6;
+    font-size: 13px;
+}
+
+.auth-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px 26px;
+    color: #80868b;
+    font-size: 14px;
+}
+
+.auth-footer-links {
+    display: flex;
+    gap: 24px;
+}
+
+.auth-footer-links a {
+    color: #5f6368;
+}
+
+.auth-footer-links a:hover {
+    color: #1a73e8;
+}

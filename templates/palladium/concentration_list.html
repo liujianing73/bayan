@@ -57,7 +57,10 @@
     <section class="form-card">
         <div class="form-card-header">
             <h2>浓度数据记录</h2>
-            <button type="button" class="btn btn-red" id="btn-bulk-delete">批量删除</button>
+            <div class="header-actions">
+                <a class="btn btn-green" href="{{ export_url }}">导出Excel</a>
+                <button type="button" class="btn btn-red" id="btn-bulk-delete">批量删除</button>
+            </div>
         </div>
         <div class="form-card-body" style="padding-top:10px;">
             <form method="post" action="{% url 'palladium:concentration_bulk_delete' %}" id="bulkForm">
