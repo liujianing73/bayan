@@ -1,0 +1,17 @@
+# Django
+db.sqlite3
+*.pyc
+__pycache__/
+*.log
+media/
+
+# python虚拟环境
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+
+# 系统文件
+Thumbs.db
