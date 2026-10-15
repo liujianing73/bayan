@@ -136,6 +136,10 @@ a {
     gap: 12px;
 }
 
+.user-menu {
+    position: relative;
+}
+
 .user-menu > a {
     display: flex;
     align-items: center;

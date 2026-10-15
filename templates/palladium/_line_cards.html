@@ -1,0 +1,41 @@
+{% if line_cards %}
+<div class="line-grid {% if '1' in batch_sections %}batch-active{% endif %}" id="grid-1">
+    {% for card in line_cards %}
+    <div class="line-card">
+        <h3 class="line-name">{{ card.line.name }}{% if card.line.line_no %} ({{ card.line.line_no }}){% endif %}</h3>
+        <div class="shift-tiles">
+            <a class="shift-tile shift-day {% if card.day %}entered{% else %}missing{% endif %}" data-sec="1"
+               href="{{ card.day_url }}">
+                <input type="checkbox" class="batch-check" data-sec="1" data-line="{{ card.line.id }}" data-shift="day"  onclick="event.stopPropagation()">
+                <span class="shift-title">早班</span>
+                {% if card.day %}
+                <span class="shift-state">已录入</span>
+                <span class="shift-time">08:00</span>
+                <span class="shift-action">点击修改</span>
+                {% else %}
+                <span class="shift-state">未录入</span>
+                <span class="shift-time">08:00</span>
+                <span class="shift-action">点击录入</span>
+                {% endif %}
+            </a>
+            <a class="shift-tile shift-night {% if card.night %}entered{% else %}missing{% endif %}" data-sec="1"
+               href="{{ card.night_url }}">
+                <input type="checkbox" class="batch-check" data-sec="1" data-line="{{ card.line.id }}" data-shift="night"  onclick="event.stopPropagation()">
+                <span class="shift-title">晚班</span>
+                {% if card.night %}
+                <span class="shift-state">已录入</span>
+                <span class="shift-time">20:00</span>
+                <span class="shift-action">点击修改</span>
+                {% else %}
+                <span class="shift-state">未录入</span>
+                <span class="shift-time">20:00</span>
+                <span class="shift-action">点击录入</span>
+                {% endif %}
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-tip" id="grid-1">没有符合条件的产线</div>
+{% endif %}

@@ -79,6 +79,7 @@
                                 <label>料号</label>
                                 <input type="text" name="d_part" class="part-input" list="part-list"
                                        placeholder="输入料号搜索（支持模糊匹配）或点击▼选择..." value="{{ d.part_no }}" maxlength="50">
+                                <div class="part-status"></div>
                                 <div class="error-msg hidden"></div>
                             </div>
                             <div class="form-item field-qty">
@@ -136,6 +137,7 @@
                     <label>料号</label>
                     <input type="text" name="d_part" class="part-input" list="part-list"
                            placeholder="输入料号搜索（支持模糊匹配）或点击▼选择..." maxlength="50">
+                    <div class="part-status"></div>
                     <div class="error-msg hidden"></div>
                 </div>
                 <div class="form-item field-qty">
@@ -229,6 +231,46 @@
             detailList.innerHTML = '';
             updateTotal();
         }
+    });
+
+    // 料号校验：存在→绿(属于当前产线)/黄(不属于当前产线)，不存在→红
+    var reportLineId = {{ report.line_id }};
+    var partTimer = null;
+
+    function renderPartStatus(hint, d) {
+        if (d.status === 'exists' && d.on_line) {
+            hint.textContent = '料号存在';
+            hint.className = 'part-status ps-green';
+        } else if (d.status === 'exists') {
+            hint.textContent = '料号存在，但不属于当前产线';
+            hint.className = 'part-status ps-yellow';
+        } else {
+            hint.textContent = '料号不存在';
+            hint.className = 'part-status ps-red';
+        }
+    }
+
+    function checkPart(input) {
+        var hint = input.closest('.form-item').querySelector('.part-status');
+        var val = input.value.trim();
+        if (!val) { hint.textContent = ''; hint.className = 'part-status'; return; }
+        hint.textContent = '查询中...';
+        hint.className = 'part-status checking';
+        fetch('/api/part-check/?part_no=' + encodeURIComponent(val) + '&line=' + reportLineId)
+            .then(function (r) { return r.json(); })
+            .then(function (d) { renderPartStatus(hint, d); })
+            .catch(function () { hint.textContent = ''; });
+    }
+
+    detailList.addEventListener('input', function (e) {
+        if (e.target.classList.contains('part-input')) {
+            clearTimeout(partTimer);
+            var input = e.target;
+            partTimer = setTimeout(function () { checkPart(input); }, 300);
+        }
+    });
+    detailList.addEventListener('change', function (e) {
+        if (e.target.classList.contains('part-input')) checkPart(e.target);
     });
 
     // 提交校验：未填字段红色提示

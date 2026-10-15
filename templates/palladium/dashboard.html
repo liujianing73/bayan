@@ -72,48 +72,8 @@
                 </span>
             </div>
 
-            {% if line_cards %}
-            <div class="line-grid {% if '1' in batch_sections %}batch-active{% endif %}" id="grid-1">
-                {% for card in line_cards %}
-                <div class="line-card">
-                    <h3 class="line-name">{{ card.line.name }}{% if card.line.line_no %} ({{ card.line.line_no }}){% endif %}</h3>
-                    <div class="shift-tiles">
-                        <a class="shift-tile shift-day {% if card.day %}entered{% else %}missing{% endif %}" data-sec="1"
-                           href="{{ card.day_url }}">
-                            <input type="checkbox" class="batch-check" data-sec="1" data-line="{{ card.line.id }}" data-shift="day"  onclick="event.stopPropagation()">
-                            <span class="shift-title">早班</span>
-                            {% if card.day %}
-                            <span class="shift-state">已录入</span>
-                            <span class="shift-time">08:00</span>
-                            <span class="shift-action">点击修改</span>
-                            {% else %}
-                            <span class="shift-state">未录入</span>
-                            <span class="shift-time">08:00</span>
-                            <span class="shift-action">点击录入</span>
-                            {% endif %}
-                        </a>
-                        <a class="shift-tile shift-night {% if card.night %}entered{% else %}missing{% endif %}" data-sec="1"
-                           href="{{ card.night_url }}">
-                            <input type="checkbox" class="batch-check" data-sec="1" data-line="{{ card.line.id }}" data-shift="night"  onclick="event.stopPropagation()">
-                            <span class="shift-title">晚班</span>
-                            {% if card.night %}
-                            <span class="shift-state">已录入</span>
-                            <span class="shift-time">20:00</span>
-                            <span class="shift-action">点击修改</span>
-                            {% else %}
-                            <span class="shift-state">未录入</span>
-                            <span class="shift-time">20:00</span>
-                            <span class="shift-action">点击录入</span>
-                            {% endif %}
-                        </a>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="empty-tip">没有符合条件的产线</div>
-            {% endif %}
-            <form method="post" id="batch-post-1" action="{% url 'palladium:shift_entry_batch' %}" class="hidden">{% csrf_token %}</form>
+            {% include 'palladium/_line_cards.html' %}
+            <form method="post" id="batch-post-1"<form method="post" id="batch-post-1" action="{% url 'palladium:shift_entry_batch' %}" class="hidden">{% csrf_token %}</form>
         </div>
     </section>
 
@@ -147,48 +107,8 @@
                 </span>
             </div>
 
-            {% if conc_cards %}
-            <div class="line-grid {% if '2' in batch_sections %}batch-active{% endif %}" id="grid-2">
-                {% for card in conc_cards %}
-                <div class="line-card">
-                    <h3 class="line-name">{{ card.line.name }}{% if card.line.line_no %} ({{ card.line.line_no }}){% endif %}</h3>
-                    <div class="shift-tiles">
-                        <a class="shift-tile shift-day {% if card.day %}entered{% else %}missing{% endif %}" data-sec="2"
-                           href="{{ card.day_url }}">
-                            <input type="checkbox" class="batch-check" data-sec="2" data-line="{{ card.line.id }}" data-shift="day"  onclick="event.stopPropagation()">
-                            <span class="shift-title">早班</span>
-                            {% if card.day %}
-                            <span class="shift-state">已录入</span>
-                            <span class="shift-time">08:00</span>
-                            <span class="shift-action">点击修改</span>
-                            {% else %}
-                            <span class="shift-state">未录入</span>
-                            <span class="shift-time">08:00</span>
-                            <span class="shift-action">点击录入</span>
-                            {% endif %}
-                        </a>
-                        <a class="shift-tile shift-night {% if card.night %}entered{% else %}missing{% endif %}" data-sec="2"
-                           href="{{ card.night_url }}">
-                            <input type="checkbox" class="batch-check" data-sec="2" data-line="{{ card.line.id }}" data-shift="night"  onclick="event.stopPropagation()">
-                            <span class="shift-title">晚班</span>
-                            {% if card.night %}
-                            <span class="shift-state">已录入</span>
-                            <span class="shift-time">20:00</span>
-                            <span class="shift-action">点击修改</span>
-                            {% else %}
-                            <span class="shift-state">未录入</span>
-                            <span class="shift-time">20:00</span>
-                            <span class="shift-action">点击录入</span>
-                            {% endif %}
-                        </a>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="empty-tip">没有符合条件的产线</div>
-            {% endif %}
-            <form method="post" id="batch-post-2" action="{% url 'palladium:concentration_batch_fill' %}" class="hidden">{% csrf_token %}</form>
+            {% include 'palladium/_conc_cards.html' %}
+            <form method="post" id="batch-post-2"<form method="post" id="batch-post-2" action="{% url 'palladium:concentration_batch_fill' %}" class="hidden">{% csrf_token %}</form>
         </div>
     </section>
 
@@ -235,14 +155,36 @@
         });
     });
 
-    // 日期变更后带日期刷新
+    /* ============ 就地刷新（不整页跳转） ============ */
+    function refreshCards(sec) {
+        var dateInput = sec === '1' ? document.getElementById('status-date') : document.getElementById('conc-date');
+        var searchInput = sec === '1' ? document.getElementById('status-search') : document.getElementById('conc-search');
+        var otherDate = sec === '1' ? document.getElementById('conc-date') : document.getElementById('status-date');
+        var params = new URLSearchParams();
+        params.set('sec', sec);
+        params.set(sec === '1' ? 'date' : 'c_date', dateInput ? dateInput.value : '');
+        if (otherDate && otherDate.value) params.set(sec === '1' ? 'c_date' : 'date', otherDate.value);
+        params.set(sec === '1' ? 'q' : 'c_q', searchInput ? searchInput.value.trim() : '');
+        var b = [];
+        if (batchState['1']) b.push('1');
+        if (batchState['2']) b.push('2');
+        if (b.length) params.set('batch', b.join(','));
+
+        fetch('/dash-cards/?' + params.toString())
+            .then(function (r) { return r.text(); })
+            .then(function (html) {
+                document.getElementById('grid-' + sec).outerHTML = html;
+                // 同步地址栏（不跳转）
+                var url = new URL(window.location.href);
+                url.searchParams.set(sec === '1' ? 'date' : 'c_date', dateInput ? dateInput.value : '');
+                if (otherDate && otherDate.value) url.searchParams.set(sec === '1' ? 'c_date' : 'date', otherDate.value);
+                history.replaceState(null, '', url.toString());
+            });
+    }
+
     var dateInput = document.getElementById('status-date');
     if (dateInput) {
-        dateInput.addEventListener('change', function () {
-            var url = new URL(window.location.href);
-            url.searchParams.set('date', dateInput.value);
-            window.location.href = url;
-        });
+        dateInput.addEventListener('change', function () { refreshCards('1'); });
     }
 
     // 回车搜索产线
@@ -250,9 +192,10 @@
     if (searchInput) {
         searchInput.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
+                refreshCards('1');
                 var url = new URL(window.location.href);
                 url.searchParams.set('q', searchInput.value.trim());
-                window.location.href = url;
+                history.replaceState(null, '', url.toString());
             }
         });
     }
@@ -260,19 +203,16 @@
     // 浓度输入区块：日期变更 / 回车搜索
     var concDate = document.getElementById('conc-date');
     if (concDate) {
-        concDate.addEventListener('change', function () {
-            var url = new URL(window.location.href);
-            url.searchParams.set('c_date', concDate.value);
-            window.location.href = url;
-        });
+        concDate.addEventListener('change', function () { refreshCards('2'); });
     }
     var concSearch = document.getElementById('conc-search');
     if (concSearch) {
         concSearch.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
+                refreshCards('2');
                 var url = new URL(window.location.href);
                 url.searchParams.set('c_q', concSearch.value.trim());
-                window.location.href = url;
+                history.replaceState(null, '', url.toString());
             }
         });
     }
@@ -304,9 +244,11 @@
     };
 
     window.batchSelect = function (sec, mode) {
+        // 已录入（已批量过）的班次块不再勾选
         document.querySelectorAll('#grid-' + sec + ' .batch-check').forEach(function (cb) {
-            if (mode === 'all') cb.checked = true;
-            else if (mode === 'day') cb.checked = cb.dataset.shift === 'day';
+            var entered = cb.closest('.shift-tile').classList.contains('entered');
+            if (mode === 'all') cb.checked = !entered;
+            else if (mode === 'day') cb.checked = !entered && cb.dataset.shift === 'day';
             else cb.checked = false;
         });
     };
@@ -344,15 +286,14 @@
     document.querySelector('[data-toggle="concentration"]').textContent = '收起';
     {% endif %}
 
-    // 批量模式下点击班次块=勾选，不跳转
-    document.querySelectorAll('.shift-tile[data-sec]').forEach(function (a) {
-        a.addEventListener('click', function (e) {
-            if (batchState[a.dataset.sec]) {
-                e.preventDefault();
-                var cb = a.querySelector('.batch-check');
-                cb.checked = !cb.checked;
-            }
-        });
+    // 批量模式下点击班次块=勾选，不跳转（事件委托，网格替换后仍有效）
+    document.addEventListener('click', function (e) {
+        var a = e.target.closest('.shift-tile[data-sec]');
+        if (a && batchState[a.dataset.sec]) {
+            e.preventDefault();
+            var cb = a.querySelector('.batch-check');
+            cb.checked = !cb.checked;
+        }
     });
 })();
 </script>

@@ -34,7 +34,7 @@
                 <li class="has-dropdown">
                     <a href="javascript:void(0)">导出 <span class="caret"></span></a>
                     <div class="dropdown">
-                        <a href="{% url 'palladium:placeholder' 'Q线镀钯和钯盐每日统计' %}">Q线镀钯和钯盐每日统计</a>
+                        <a href="{% url 'palladium:qline_stats' %}">Q线镀钯和钯盐每日统计</a>
                     </div>
                 </li>
                 <li class="has-dropdown">
@@ -66,8 +66,6 @@
 
         <div class="navbar-right">
             {% if user.is_authenticated %}
-                <a class="btn btn-outline-green" href="{% url 'palladium:placeholder' '共享文档' %}">共享文档</a>
-                <a class="btn btn-outline" href="{% url 'palladium:placeholder' '备忘录' %}">📝 备忘录</a>
                 <div class="has-dropdown user-menu">
                     <a href="javascript:void(0)">{{ user.username }} <span class="caret"></span></a>
                     <div class="dropdown dropdown-right">
@@ -100,8 +98,6 @@
     </div>
 </footer>
 
-<!-- 右下角浮动备忘录按钮 -->
-<button class="fab" title="备忘录" onclick="location.href='{% url 'palladium:placeholder' '备忘录' %}'">📝</button>
 
 <script src="{% static 'js/base.js' %}"></script>
 {% block extra_js %}{% endblock %}

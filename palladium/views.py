@@ -9,6 +9,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render, reverse
+from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
@@ -36,14 +37,14 @@ CATEGORIES_NEED_PART = {'生产', '换线', '重工', '试做', '判定', '阳�
 CATEGORIES_NEED_QTY = {'生产', '重工', '试做'}
 SAMPLE_TIMES = ['08:00', '20:00']
 MIN_MINUTES = 720  # 每日总时长须满12小时
-OPEN_STATUS = ['无', '开缸', '抽出', '回槽']
+OPEN_STATUS = ['无', '开缸', '抽出', '回槽', '抽入']
 TEST_STATUS = ['未检测', '检测']
-GRASS_TYPES = ['罩头1', '罩头2', '罩头3']
+GRASS_TYPES = ['无', '浸-单', '浸-双', '浸-三', '浸-四', '点-单', '点-双', '点-三', '点-四', '刷-单', '刷-双', '刷-三', '刷-四', '刷-五', '刷-六']
 CONC_SLOT_TYPES = ['镀钯', '镀镍']
 
 FLOORS = ['车间1楼', '车间2楼', '车间3楼']
 
-SLOT_TYPES = ['选金', '点镀', '镀钯']
+SLOT_TYPES = ['镀钯', '镀镍']
 
 
 def login_view(request):
@@ -100,81 +101,78 @@ def register_view(request):
     })
 
 
-def dashboard(request):
-    """系统首页：最近操作记录 / 产线录入状态 / 钯盐浓度输入 + 快捷入口"""
-    date = _parse_date(request.GET.get('date'), timezone.localdate())
-    search = request.GET.get('q', '').strip()
-    # 浓度输入区块独立的筛选
-    c_date = _parse_date(request.GET.get('c_date'), timezone.localdate())
-    c_search = request.GET.get('c_q', '').strip()
-
+def _build_line_cards(date, search):
+    """产线录入状态卡片数据"""
     lines = ProductionLine.objects.filter(is_active=True)
     if search:
         lines = lines.filter(name__icontains=search)
-
     entries = ShiftEntry.objects.filter(date=date)
     entry_map = {(e.line_id, e.shift): e for e in entries}
-
-    # 日报映射：点击首页卡片直达编辑页（已录入）或填写页（未录入）
     report_map = {
         (r.line_id, ShiftEntry.SHIFT_DAY if r.sample_time.hour < 12 else ShiftEntry.SHIFT_NIGHT): r.id
         for r in DailyReport.objects.filter(sample_date=date)
     }
-
-    line_cards = [
-        {
+    cards = []
+    for line in lines:
+        day_report_id = report_map.get((line.id, ShiftEntry.SHIFT_DAY))
+        night_report_id = report_map.get((line.id, ShiftEntry.SHIFT_NIGHT))
+        day_url = (reverse('palladium:report_edit', args=[day_report_id]) if day_report_id
+                   else reverse('palladium:report_create')
+                   + f"?line={line.id}&date={date:%Y-%m-%d}&time=08:00")
+        night_url = (reverse('palladium:report_edit', args=[night_report_id]) if night_report_id
+                     else reverse('palladium:report_create')
+                     + f"?line={line.id}&date={date:%Y-%m-%d}&time=20:00")
+        cards.append({
             'line': line,
             'day': entry_map.get((line.id, ShiftEntry.SHIFT_DAY)),
             'night': entry_map.get((line.id, ShiftEntry.SHIFT_NIGHT)),
-            'day_report_id': report_map.get((line.id, ShiftEntry.SHIFT_DAY)),
-            'night_report_id': report_map.get((line.id, ShiftEntry.SHIFT_NIGHT)),
-        }
-        for line in lines
-    ]
-    for card in line_cards:
-        if card['day_report_id']:
-            card['day_url'] = reverse('palladium:report_edit', args=[card['day_report_id']])
-        else:
-            card['day_url'] = (reverse('palladium:report_create')
-                               + f"?line={card['line'].id}&date={date:%Y-%m-%d}&time=08:00")
-        if card['night_report_id']:
-            card['night_url'] = reverse('palladium:report_edit', args=[card['night_report_id']])
-        else:
-            card['night_url'] = (reverse('palladium:report_create')
-                                 + f"?line={card['line'].id}&date={date:%Y-%m-%d}&time=20:00")
+            'day_url': day_url, 'night_url': night_url,
+        })
+    return cards
 
-    # 浓度输入区块：按 ConcentrationRecord 判断各产线早/晚班录入状态
+
+def _build_conc_cards(c_date, c_search):
+    """钯盐浓度输入卡片数据（已录入跳编辑页，未录入跳录入页预选）"""
     c_lines = ProductionLine.objects.filter(is_active=True)
     if c_search:
         c_lines = c_lines.filter(name__icontains=c_search)
-    conc_records = ConcentrationRecord.objects.filter(sample_date=c_date)
     conc_map = {
         (r.line_id, ShiftEntry.SHIFT_DAY if r.sample_time.hour < 12 else ShiftEntry.SHIFT_NIGHT): r
-        for r in conc_records
+        for r in ConcentrationRecord.objects.filter(sample_date=c_date)
     }
-    conc_cards = [
-        {
-            'line': line,
-            'day': conc_map.get((line.id, ShiftEntry.SHIFT_DAY)),
-            'night': conc_map.get((line.id, ShiftEntry.SHIFT_NIGHT)),
-        }
-        for line in c_lines
-    ]
-    for card in conc_cards:
+    cards = []
+    for line in c_lines:
         base = (reverse('palladium:concentration_input')
-                + f"?line={card['line'].id}&date={c_date:%Y-%m-%d}&time=")
-        # 已录入 → 编辑浓度数据页；未录入 → 录入页预选
-        card['day_url'] = (reverse('palladium:concentration_edit', args=[card['day'].id])
-                           if card['day'] else base + '08:00')
-        card['night_url'] = (reverse('palladium:concentration_edit', args=[card['night'].id])
-                             if card['night'] else base + '20:00')
+                + f"?line={line.id}&date={c_date:%Y-%m-%d}&time=")
+        day_rec = conc_map.get((line.id, ShiftEntry.SHIFT_DAY))
+        night_rec = conc_map.get((line.id, ShiftEntry.SHIFT_NIGHT))
+        cards.append({
+            'line': line,
+            'day': day_rec, 'night': night_rec,
+            'day_url': (reverse('palladium:concentration_edit', args=[day_rec.id])
+                        if day_rec else base + '08:00'),
+            'night_url': (reverse('palladium:concentration_edit', args=[night_rec.id])
+                          if night_rec else base + '20:00'),
+        })
+    return cards
+
+
+def dashboard(request):
+    """系统首页：最近操作记录 / 产线录入状态 / 钯盐浓度输入 + 快捷入口"""
+    date = _parse_date(request.GET.get('date'), timezone.localdate())
+    search = request.GET.get('q', '').strip()
+    c_date = _parse_date(request.GET.get('c_date'), timezone.localdate())
+    c_search = request.GET.get('c_q', '').strip()
+
+    line_cards = _build_line_cards(date, search)
+    conc_cards = _build_conc_cards(c_date, c_search)
 
     since = timezone.now() - datetime.timedelta(hours=24)
     logs = OperationLog.objects.filter(created_at__gte=since)[:50]
 
     today = timezone.localdate()
-    batch_sections = [x for x in (request.GET.get('batch') or '').split(',') if x in ('1', '2')]
     c_date_label = '今日' if c_date == today else f'{c_date.month}月{c_date.day}日'
+    batch_sections = [x for x in (request.GET.get('batch') or '').split(',') if x in ('1', '2')]
 
     context = {
         'page_title': '首页',
@@ -190,6 +188,30 @@ def dashboard(request):
     }
     return render(request, 'palladium/dashboard.html', context)
 
+
+def dashboard_cards(request):
+    """AJAX：按日期/搜索就地刷新首页卡片区块（不整页跳转）"""
+    sec = request.GET.get('sec') or '1'
+    today = timezone.localdate()
+    date = _parse_date(request.GET.get('date'), timezone.localdate())
+    c_date = _parse_date(request.GET.get('c_date'), timezone.localdate())
+    q = (request.GET.get('q') or '').strip()
+    c_q = (request.GET.get('c_q') or '').strip()
+    batch_sections = [x for x in (request.GET.get('batch') or '').split(',') if x in ('1', '2')]
+
+    if sec == '2':
+        c_date_label = '今日' if c_date == today else f'{c_date.month}月{c_date.day}日'
+        html = render_to_string('palladium/_conc_cards.html', {
+            'conc_cards': _build_conc_cards(c_date, c_q),
+            'batch_sections': batch_sections,
+            'c_date_label': c_date_label,
+        })
+    else:
+        html = render_to_string('palladium/_line_cards.html', {
+            'line_cards': _build_line_cards(date, q),
+            'batch_sections': batch_sections,
+        })
+    return HttpResponse(html)
 
 def line_create(request):
     """定义新产线：槽位基本资料定义"""
@@ -1079,15 +1101,21 @@ def concentration_list(request):
 
 
 def _effective_concentration(line, day, sample_time):
-    """取某日浓度的有效记录；当天无录入则沿用之前最近一天的数据（数据来源标注沿用）"""
+    """有效浓度记录：当天有检测数据则当日录入；否则一直沿用之前最近的检测数据；
+    批量生成的未检测占位记录不算新数据（仅在无任何检测数据时兜底返回）"""
     rec = ConcentrationRecord.objects.filter(
-        line=line, sample_date=day, sample_time=sample_time).first()
+        line=line, sample_date=day, sample_time=sample_time, test_status='检测').first()
     if rec:
         return rec, '当日录入'
     rec = ConcentrationRecord.objects.filter(
-        line=line, sample_time=sample_time, sample_date__lt=day).order_by('-sample_date').first()
+        line=line, sample_time=sample_time, sample_date__lt=day,
+        test_status='检测').order_by('-sample_date').first()
     if rec:
         return rec, f"沿用{rec.sample_date:%m-%d}"
+    rec = ConcentrationRecord.objects.filter(
+        line=line, sample_date=day, sample_time=sample_time).first()
+    if rec:
+        return rec, '当日录入(未检测)'
     return None, None
 
 
@@ -1604,6 +1632,95 @@ def concentration_clear(request):
     return redirect(f"{reverse('palladium:dashboard')}?{urlencode(params)}")
 
 
+
+def qline_stats(request):
+    """Q线镀钯和钯盐每日统计：镀钯槽逐日深度报表"""
+    today = timezone.localdate()
+    start = _parse_date(request.GET.get('start'), today.replace(day=1))
+    end = _parse_date(request.GET.get('end'), today - datetime.timedelta(days=1))
+    selected_ids = {int(x) for x in request.GET.getlist('lines') if x.isdigit()}
+    queried = request.GET.get('queried') == '1'
+    export = request.GET.get('export') == '1'
+
+    lines = list(ProductionLine.objects.order_by('id'))
+    sel_lines = [l for l in lines if l.id in selected_ids] or list(lines)
+
+    columns = []
+    rows = []
+    has_data = False
+
+    if sel_lines and start and end and start <= end:
+        span = min((end - start).days, 61)
+        dates = [start + datetime.timedelta(days=i) for i in range(span + 1)]
+        cell = {}
+        line_cols = {}
+        for line in sel_lines:
+            recs = {}
+            for r in ConcentrationRecord.objects.filter(line=line, sample_date__range=(start, end)).order_by('sample_time'):
+                recs.setdefault(r.sample_date, r)
+            for r in recs.values():
+                for sl in r.slot_rows.all():
+                    line_cols.setdefault(line.id, {}).setdefault(sl.slot_no, (sl.slot_type, sl.slot_name))
+                    cell[(line.id, sl.slot_no, r.sample_date)] = str(sl.liquid_level or '').strip()
+            if not line_cols.get(line.id):
+                prev = ConcentrationRecord.objects.filter(line=line, sample_date__lt=start).order_by('-sample_date').first()
+                if prev:
+                    for sl in prev.slot_rows.all():
+                        line_cols.setdefault(line.id, {}).setdefault(sl.slot_no, (sl.slot_type, sl.slot_name))
+
+        for line in sel_lines:
+            slots = line_cols.get(line.id, {})
+            if not slots:
+                continue
+            carry = {}
+            init = ConcentrationRecord.objects.filter(line=line, sample_date__lt=start).order_by('-sample_date', 'sample_time').first()
+            if init:
+                for sl in init.slot_rows.all():
+                    carry[sl.slot_no] = str(sl.liquid_level or '').strip()
+            for d in dates:
+                for no, (st, sn) in sorted(slots.items()):
+                    v = cell.get((line.id, no, d))
+                    if v is None:
+                        v = carry.get(no, '')
+                    elif v:
+                        carry[no] = v
+                    cell[(line.id, no, ('row', d))] = v
+
+        for line in sel_lines:
+            for no, (st, sn) in sorted(line_cols.get(line.id, {}).items()):
+                columns.append({'key': str(line.id) + ':' + str(no), 'label': line.name + ' ' + (sn or st)})
+        for d in dates:
+            vals = []
+            for line in sel_lines:
+                for no, (st, sn) in sorted(line_cols.get(line.id, {}).items()):
+                    vals.append(cell.get((line.id, no, ('row', d))) or '')
+            rows.append({'date': d, 'vals': vals})
+        has_data = any(v for r in rows for v in r['vals'])
+
+    if export:
+        from .qline_export import build_qline_workbook
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename=qline_depth_' + str(today.strftime('%Y%m%d')) + '.xlsx'
+        wb = build_qline_workbook(sel_lines, start, end,
+                                  request.user if request.user.is_authenticated else None)
+        wb.save(response)
+        return response
+
+    context = {
+        'page_title': 'Q线镀钯和钯盐每日统计',
+        'lines': lines,
+        'start': request.GET.get('start') or '',
+        'end': request.GET.get('end') or '',
+        'selected_ids': selected_ids,
+        'columns': columns,
+        'rows': rows,
+        'has_data': has_data,
+        'queried': queried,
+    }
+    return render(request, 'palladium/qline_stats.html', context)
+
+
 def line_toggle_page(request):
     """启用/关闭产线"""
     lines = ProductionLine.objects.all()
@@ -1832,7 +1949,20 @@ def param_create(request):
     return render(request, 'palladium/param_create.html', context)
 
 
-@require_POST
+def api_part_check(request):
+    """料号校验：是否存在 / 是否属于指定产线"""
+    part_no = (request.GET.get('part_no') or '').strip()
+    line_id = request.GET.get('line') or ''
+    if not part_no:
+        return JsonResponse({'status': 'empty'})
+    product = Product.objects.filter(part_no=part_no).first()
+    if not product:
+        return JsonResponse({'status': 'not_found'})
+    on_line = ProductLineConfig.objects.filter(product=product, line_id=line_id).exists()
+    customer = product.customer.name if product.customer else ''
+    return JsonResponse({'status': 'exists', 'on_line': on_line, 'customer': customer})
+
+
 def api_plating_type_add(request):
     """新增镀种"""
     name = (request.POST.get('name') or '').strip()
